@@ -401,17 +401,72 @@
 
         .game-layout {
             display: grid;
+            grid-template-areas:
+                "toolbar toolbar"
+                "board side"
+                "intel intel";
             grid-template-columns: minmax(0, max-content) minmax(340px, 1fr);
             gap: 20px;
             align-items: start;
         }
 
+        .game-toolbar,
         .board-card,
-        .side-card {
+        .side-card,
+        .opponent-intel {
             background: var(--panel);
             border: 1px solid var(--line);
             border-radius: 28px;
             box-shadow: var(--shadow);
+        }
+
+        .game-toolbar {
+            display: grid;
+            gap: 12px 16px;
+            grid-area: toolbar;
+            grid-template-areas:
+                "turn actions"
+                "message shortcut";
+            grid-template-columns: minmax(280px, 0.8fr) minmax(520px, 1.2fr);
+            padding: 14px;
+        }
+
+        .board-card {
+            grid-area: board;
+        }
+
+        .side-card {
+            grid-area: side;
+        }
+
+        .opponent-intel {
+            grid-area: intel;
+        }
+
+        .game-toolbar .player-card {
+            grid-area: turn;
+            padding: 14px 18px;
+        }
+
+        .game-toolbar .actions {
+            align-self: center;
+            grid-area: actions;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin: 0;
+        }
+
+        .game-toolbar .message {
+            align-items: center;
+            display: flex;
+            grid-area: message;
+            min-height: 46px;
+        }
+
+        .game-toolbar .shortcut-help {
+            align-items: center;
+            display: flex;
+            grid-area: shortcut;
+            margin: 0;
         }
 
         .board-card {
@@ -563,6 +618,16 @@
             font-size: 22px;
         }
 
+        .turn-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.16em;
+            margin-bottom: 5px;
+            opacity: 0.78;
+            text-transform: uppercase;
+        }
+
         .player-card p {
             margin: 0;
             opacity: 0.9;
@@ -616,13 +681,238 @@
             margin: 0;
         }
 
+        .side-card > .pieces-title {
+            margin-top: 0;
+        }
+
+        .piece-owner-hint {
+            color: var(--ink-soft);
+            display: block;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .side-card.your-turn {
+            border-color: var(--viewer-color, var(--blue));
+            box-shadow: var(--shadow), 0 0 0 3px var(--viewer-glow, rgba(30,136,229,0.14));
+        }
+
         .piece-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
             gap: 10px;
-            max-height: 360px;
+            max-height: min(54vh, 620px);
             overflow: auto;
             padding-right: 4px;
+        }
+
+        .piece-list.read-only .piece-button {
+            cursor: default;
+        }
+
+        .piece-list.read-only .piece-button:hover,
+        .piece-button:disabled:hover {
+            box-shadow: none;
+            transform: none;
+        }
+
+        .piece-empty {
+            border: 1px dashed var(--line);
+            border-radius: 16px;
+            color: var(--ink-soft);
+            grid-column: 1 / -1;
+            padding: 24px 16px;
+            text-align: center;
+        }
+
+        .opponent-intel {
+            padding: 18px;
+        }
+
+        .intel-header {
+            align-items: flex-start;
+            display: flex;
+            gap: 18px;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .intel-header h2 {
+            font-size: 20px;
+            margin: 0 0 5px;
+        }
+
+        .intel-header p {
+            color: var(--ink-soft);
+            font-size: 13px;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .intel-badge {
+            background: #fff3cd;
+            border: 1px solid rgba(138,90,0,0.18);
+            border-radius: 999px;
+            color: #795100;
+            flex: 0 0 auto;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 8px 12px;
+        }
+
+        .opponent-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            overflow-x: auto;
+            padding: 2px 2px 6px;
+        }
+
+        .opponent-tab {
+            align-items: center;
+            background: rgba(255,255,255,0.68);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            color: var(--ink-soft);
+            cursor: pointer;
+            display: inline-flex;
+            flex: 0 0 auto;
+            gap: 8px;
+            min-height: 42px;
+            padding: 0 14px;
+        }
+
+        .opponent-tab.active {
+            background: var(--ink);
+            border-color: var(--ink);
+            color: #ffffff;
+        }
+
+        .opponent-tab.unlocked:not(.active) {
+            border-color: var(--tab-color);
+            color: var(--ink);
+        }
+
+        .opponent-tab-dot {
+            background: var(--tab-color);
+            border: 2px solid rgba(255,255,255,0.7);
+            border-radius: 50%;
+            height: 12px;
+            width: 12px;
+        }
+
+        .opponent-intel-view {
+            background: rgba(255,255,255,0.52);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            min-height: 220px;
+            overflow: hidden;
+            padding: 16px;
+            position: relative;
+        }
+
+        .intel-summary {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .intel-summary strong {
+            font-size: 16px;
+        }
+
+        .intel-summary span {
+            color: var(--ink-soft);
+            font-size: 13px;
+        }
+
+        .intel-piece-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+        }
+
+        .intel-piece-grid.locked {
+            filter: blur(8px);
+            opacity: 0.48;
+            pointer-events: none;
+            transform: scale(1.015);
+            user-select: none;
+        }
+
+        .intel-piece-card {
+            align-items: center;
+            background: rgba(255,255,255,0.86);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 76px;
+            padding: 7px;
+        }
+
+        .intel-piece-card small {
+            color: var(--ink-soft);
+            margin-bottom: 6px;
+        }
+
+        .intel-lock-overlay {
+            align-items: center;
+            background: rgba(245,248,251,0.76);
+            display: flex;
+            flex-direction: column;
+            inset: 0;
+            justify-content: center;
+            padding: 20px;
+            position: absolute;
+            text-align: center;
+        }
+
+        .intel-lock-icon {
+            align-items: center;
+            background: var(--ink);
+            border-radius: 50%;
+            color: #ffffff;
+            display: flex;
+            font-size: 24px;
+            height: 52px;
+            justify-content: center;
+            margin-bottom: 10px;
+            width: 52px;
+        }
+
+        .intel-lock-overlay h3 {
+            margin: 0 0 6px;
+        }
+
+        .intel-lock-overlay p {
+            color: var(--ink-soft);
+            line-height: 1.6;
+            margin: 0 0 14px;
+        }
+
+        .intel-unlock-button {
+            background: linear-gradient(135deg, #ff9f1c, #f5b21b);
+            border: 0;
+            border-radius: 999px;
+            box-shadow: 0 10px 24px rgba(245,178,27,0.3);
+            color: #3d2900;
+            cursor: pointer;
+            font-weight: 800;
+            min-height: 42px;
+            padding: 0 18px;
+        }
+
+        .intel-empty-state {
+            align-items: center;
+            color: var(--ink-soft);
+            display: flex;
+            justify-content: center;
+            min-height: 180px;
+            text-align: center;
         }
 
         .piece-button {
@@ -733,7 +1023,8 @@
             margin: 0 0 8px;
         }
 
-        body.victory-open {
+        body.victory-open,
+        body.ad-open {
             overflow: hidden;
         }
 
@@ -993,6 +1284,149 @@
             100% { opacity: 0.9; transform: translateY(110vh) rotate(720deg); }
         }
 
+        .ad-modal {
+            align-items: center;
+            display: grid;
+            inset: 0;
+            justify-items: center;
+            padding: 22px;
+            position: fixed;
+            z-index: 1200;
+        }
+
+        .ad-modal.hidden {
+            display: none;
+        }
+
+        .ad-backdrop {
+            backdrop-filter: blur(10px);
+            background: rgba(8,13,22,0.84);
+            inset: 0;
+            position: absolute;
+            z-index: -1;
+        }
+
+        .ad-card {
+            animation: victory-card-in 0.38s ease-out both;
+            background: #ffffff;
+            border-radius: 28px;
+            box-shadow: 0 30px 100px rgba(0,0,0,0.52);
+            max-width: 760px;
+            overflow: hidden;
+            padding: 18px;
+            position: relative;
+            text-align: center;
+            width: min(100%, 760px);
+        }
+
+        .ad-topline {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .ad-label {
+            background: #edf1f5;
+            border-radius: 999px;
+            color: var(--ink-soft);
+            font-size: 12px;
+            font-weight: 800;
+            padding: 7px 11px;
+        }
+
+        .ad-exit {
+            background: transparent;
+            border: 0;
+            color: var(--ink-soft);
+            cursor: pointer;
+            font-weight: 700;
+            padding: 7px;
+        }
+
+        .ad-creative {
+            align-items: center;
+            animation: ad-placeholder-shift 5s ease-in-out infinite alternate;
+            aspect-ratio: 16 / 7;
+            background:
+                radial-gradient(circle at 22% 30%, rgba(255,255,255,0.42), transparent 24%),
+                linear-gradient(135deg, #6c63ff, #1e88e5 48%, #43a047);
+            border-radius: 20px;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .ad-creative::after {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent);
+            content: "";
+            inset: -40% auto -40% -30%;
+            position: absolute;
+            transform: rotate(18deg);
+            width: 28%;
+        }
+
+        .ad-mark {
+            border: 3px solid rgba(255,255,255,0.9);
+            border-radius: 16px;
+            font-size: clamp(34px, 7vw, 64px);
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            line-height: 1;
+            padding: 12px 16px;
+        }
+
+        .ad-creative p {
+            font-weight: 700;
+            margin: 12px 0 0;
+        }
+
+        .ad-card h2 {
+            font-size: 22px;
+            margin: 16px 0 6px;
+        }
+
+        .ad-card > p {
+            color: var(--ink-soft);
+            margin: 0;
+        }
+
+        .ad-countdown {
+            color: var(--ink);
+            font-size: 14px;
+            margin-top: 12px;
+        }
+
+        .ad-countdown strong {
+            color: var(--blue);
+            font-size: 24px;
+        }
+
+        .ad-progress {
+            background: #e8edf2;
+            border-radius: 999px;
+            height: 7px;
+            margin-top: 14px;
+            overflow: hidden;
+        }
+
+        .ad-progress span {
+            background: linear-gradient(90deg, var(--blue), var(--green));
+            display: block;
+            height: 100%;
+            transition: width 0.24s linear;
+            width: 0;
+        }
+
+        @keyframes ad-placeholder-shift {
+            from { filter: hue-rotate(0deg); transform: scale(1); }
+            to { filter: hue-rotate(24deg); transform: scale(1.012); }
+        }
+
         .hidden {
             display: none;
         }
@@ -1006,6 +1440,11 @@
                 animation: none;
             }
 
+            .ad-card,
+            .ad-creative {
+                animation: none;
+            }
+
             .victory-confetti {
                 display: none;
             }
@@ -1016,6 +1455,29 @@
             .game-layout,
             .online-panel {
                 grid-template-columns: 1fr;
+            }
+
+            .game-toolbar {
+                grid-template-areas:
+                    "turn"
+                    "actions"
+                    "message"
+                    "shortcut";
+                grid-template-columns: 1fr;
+            }
+
+            .game-layout {
+                grid-template-areas:
+                    "toolbar"
+                    "board"
+                    "side"
+                    "intel";
+            }
+
+            .side-card {
+                max-height: none;
+                overflow: visible;
+                position: static;
             }
 
             .nav-actions {
@@ -1038,8 +1500,10 @@
 
             .mode-panel,
             .online-panel,
+            .game-toolbar,
             .board-card,
-            .side-card {
+            .side-card,
+            .opponent-intel {
                 border-radius: 20px;
                 padding: 12px;
             }
@@ -1066,6 +1530,11 @@
                 padding: 10px;
             }
 
+            .game-toolbar .actions {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                position: static;
+            }
+
             .button,
             .link-button {
                 min-height: 44px;
@@ -1074,7 +1543,7 @@
 
             .piece-list {
                 grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-                max-height: 250px;
+                max-height: 420px;
             }
 
             .piece-button {
@@ -1087,6 +1556,25 @@
 
             .victory-modal {
                 padding: 14px;
+            }
+
+            .intel-header {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .intel-badge {
+                align-self: flex-start;
+            }
+
+            .ad-modal {
+                padding: 10px;
+            }
+
+            .ad-card {
+                border-radius: 22px;
+                padding: 12px;
             }
 
             .victory-card {
@@ -1173,6 +1661,28 @@
         </section>
 
         <section class="game-layout">
+            <section class="game-toolbar" aria-label="当前回合与操作">
+                <section class="player-card blue" id="currentPlayerCard">
+                    <span class="turn-label">当前回合</span>
+                    <h2 id="currentPlayerName">蓝色玩家</h2>
+                    <p id="currentPlayerHint">请选择一枚棋子开始。</p>
+                </section>
+
+                <div class="actions" aria-label="棋子操作">
+                    <button class="button" id="rotateLeft" data-turn-action>左旋转</button>
+                    <button class="button" id="rotateRight" data-turn-action>右旋转</button>
+                    <button class="button" id="flipPiece" data-turn-action>沿 X 轴翻转</button>
+                    <button class="button danger" id="passTurn" data-turn-action>跳过回合</button>
+                    <button class="button" id="restartRound">重新开始本局</button>
+                    <button class="button warning" id="endGame">手动结束游戏</button>
+                    <button class="button warning full hidden" id="autoSkipRest" data-turn-action>无子可下，之后均跳过</button>
+                </div>
+
+                <div class="message" id="message">选择棋子后，桌面端点击棋盘格即可落子；手机端先点一次预览，再点同一位置确认。</div>
+
+                <div class="shortcut-help">快捷键：选中棋子后，按 ← 向左旋转，按 → 向右旋转，按 ↑ / ↓ 沿 X 轴翻转；鼠标移到棋盘目标位置后，按 Enter 确认落子。</div>
+            </section>
+
             <section class="board-card">
                 <div class="board-header">
                     <h2 class="board-title" id="boardTitle">20 × 20 棋盘</h2>
@@ -1183,28 +1693,12 @@
                 </div>
             </section>
 
-            <aside class="side-card">
-                <section class="player-card blue" id="currentPlayerCard">
-                    <h2 id="currentPlayerName">蓝色玩家</h2>
-                    <p id="currentPlayerHint">请选择一枚棋子开始。</p>
-                </section>
-
-                <div class="actions">
-                    <button class="button" id="rotateLeft">左旋转</button>
-                    <button class="button" id="rotateRight">右旋转</button>
-                    <button class="button" id="flipPiece">沿 X 轴翻转</button>
-                    <button class="button danger" id="passTurn">跳过回合</button>
-                    <button class="button" id="restartRound">重新开始本局</button>
-                    <button class="button warning" id="endGame">手动结束游戏</button>
-                    <button class="button warning full hidden" id="autoSkipRest">无子可下，之后均跳过</button>
-                </div>
-
-                <div class="shortcut-help">快捷键：选中棋子后，按 ← 向左旋转，按 → 向右旋转，按 ↑ / ↓ 沿 X 轴翻转；鼠标移到棋盘目标位置后，按 Enter 确认落子。</div>
-
-                <div class="message" id="message">选择棋子后，桌面端点击棋盘格即可落子；手机端先点一次预览，再点同一位置确认。</div>
-
+            <aside class="side-card" id="sideCard">
                 <div class="pieces-title">
-                    <h3>当前玩家棋子</h3>
+                    <div>
+                        <h3 id="pieceOwnerTitle">我的剩余棋子</h3>
+                        <small class="piece-owner-hint" id="pieceOwnerHint">进入房间后显示你的棋子</small>
+                    </div>
                     <span class="status-pill" id="remainingCount">剩余 21 枚</span>
                 </div>
                 <div class="piece-list" id="pieceList"></div>
@@ -1221,10 +1715,25 @@
                 </div>
                 <ol class="log-list" id="actionLog"></ol>
             </aside>
+
+            <section class="opponent-intel" id="opponentIntel" aria-labelledby="opponentIntelTitle">
+                <div class="intel-header">
+                    <div>
+                        <h2 id="opponentIntelTitle">对手情报站</h2>
+                        <p>选择一位对手，观看 15 秒广告即可解锁其本局剩余棋子。每位玩家需要分别解锁。</p>
+                    </div>
+                    <span class="intel-badge">🎬 每次解锁一位</span>
+                </div>
+                <div class="opponent-tabs" id="opponentTabs" role="tablist" aria-label="选择对手"></div>
+                <div class="opponent-intel-view" id="opponentIntelView">
+                    <div class="intel-empty-state">进入联机房间后，这里会显示其他玩家的情报标签。</div>
+                </div>
+            </section>
         </section>
     </main>
 
     <audio id="bgmPlayer" autoplay loop playsinline preload="auto" src="./assets/audio/bgm/张一诺 - 信任的进化.mp3"></audio>
+    <audio id="victorySound" playsinline preload="auto" src="./assets/audio/sfx/winner-game-sound.mp3"></audio>
 
     <div class="victory-modal hidden" id="victoryModal" role="dialog" aria-modal="true" aria-labelledby="victoryWinner">
         <div class="victory-backdrop"></div>
@@ -1253,6 +1762,24 @@
             <p class="victory-summary" id="victorySummary"></p>
             <div class="victory-scores" id="victoryScores"></div>
             <button class="victory-action" id="victoryViewBoard" type="button">查看最终棋盘</button>
+        </section>
+    </div>
+
+    <div class="ad-modal hidden" id="opponentAdModal" role="dialog" aria-modal="true" aria-labelledby="opponentAdTitle">
+        <div class="ad-backdrop"></div>
+        <section class="ad-card">
+            <div class="ad-topline">
+                <span class="ad-label">广告演示 · 15 秒</span>
+                <button class="ad-exit" id="opponentAdExit" type="button">退出广告（不解锁）</button>
+            </div>
+            <div class="ad-creative" aria-label="广告素材预留区域">
+                <div class="ad-mark">AD</div>
+                <p>广告素材预留区域</p>
+            </div>
+            <h2 id="opponentAdTitle">正在解锁对手情报</h2>
+            <p id="opponentAdTarget">完整观看后即可查看该玩家的剩余棋子。</p>
+            <div class="ad-progress" aria-hidden="true"><span id="opponentAdProgress"></span></div>
+            <div class="ad-countdown"><strong id="opponentAdCountdown">15</strong> 秒后解锁</div>
         </section>
     </div>
 
@@ -1294,6 +1821,7 @@
         };
 
         const DEFAULT_BGM_ID = 'contemplative';
+        const OPPONENT_AD_DURATION_MS = 15_000;
         const BGM_TRACKS = {
             contemplative: {
                 label: '沉思版',
@@ -1718,14 +2246,27 @@
             currentPlayerCard: document.getElementById('currentPlayerCard'),
             currentPlayerName: document.getElementById('currentPlayerName'),
             currentPlayerHint: document.getElementById('currentPlayerHint'),
+            sideCard: document.getElementById('sideCard'),
             pieceList: document.getElementById('pieceList'),
+            pieceOwnerTitle: document.getElementById('pieceOwnerTitle'),
+            pieceOwnerHint: document.getElementById('pieceOwnerHint'),
             message: document.getElementById('message'),
             remainingCount: document.getElementById('remainingCount'),
             scoreGrid: document.getElementById('scoreGrid'),
             resultPanel: document.getElementById('resultPanel'),
             actionLog: document.getElementById('actionLog'),
+            opponentIntel: document.getElementById('opponentIntel'),
+            opponentTabs: document.getElementById('opponentTabs'),
+            opponentIntelView: document.getElementById('opponentIntelView'),
+            opponentAdModal: document.getElementById('opponentAdModal'),
+            opponentAdExit: document.getElementById('opponentAdExit'),
+            opponentAdTitle: document.getElementById('opponentAdTitle'),
+            opponentAdTarget: document.getElementById('opponentAdTarget'),
+            opponentAdProgress: document.getElementById('opponentAdProgress'),
+            opponentAdCountdown: document.getElementById('opponentAdCountdown'),
             musicControl: document.getElementById('musicControl'),
             bgmPlayer: document.getElementById('bgmPlayer'),
+            victorySound: document.getElementById('victorySound'),
             bgmSelect: document.getElementById('bgmSelect'),
             bgmStatus: document.getElementById('bgmStatus'),
             bgmToggle: document.getElementById('bgmToggle'),
@@ -1759,6 +2300,11 @@
         let victoryModalDismissed = false;
         let bgmWantsToPlay = true;
         let bgmUnlockArmed = false;
+        let opponentIntelUnlocked = new Set();
+        let selectedOpponentColor = null;
+        let opponentAdTargetColor = null;
+        let opponentAdEndsAt = 0;
+        let opponentAdTimer = null;
         let roomUnsubscribes = [];
         let firebaseApp = null;
         let db = null;
@@ -1849,6 +2395,195 @@
             }
         }
 
+        function getOpponentUnlockStorageKey() {
+            if (!onlineSession.roomId || !onlineSession.clientId) return '';
+            return `squareGameOpponentUnlocks:${onlineSession.roomId}:${onlineSession.clientId}`;
+        }
+
+        function loadOpponentIntelUnlocks() {
+            opponentIntelUnlocked = new Set();
+            selectedOpponentColor = null;
+            const storageKey = getOpponentUnlockStorageKey();
+            if (!storageKey) return;
+            try {
+                const savedColors = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                if (Array.isArray(savedColors)) {
+                    const validColors = new Set(getColorsForMode(onlineSession.room?.mode));
+                    opponentIntelUnlocked = new Set(savedColors.filter((color) => (
+                        validColors.has(color) && color !== onlineSession.color
+                    )));
+                }
+            } catch (error) {
+                localStorage.removeItem(storageKey);
+            }
+        }
+
+        function saveOpponentIntelUnlocks() {
+            const storageKey = getOpponentUnlockStorageKey();
+            if (!storageKey) return;
+            localStorage.setItem(storageKey, JSON.stringify([...opponentIntelUnlocked]));
+        }
+
+        function getOpponentPlayers(state) {
+            if (!isInOnlineRoom() || !onlineSession.color) return [];
+            return state.players.filter((player) => player.color !== onlineSession.color);
+        }
+
+        function renderIntelPieceCards(pieces, color, locked = false) {
+            if (!pieces.length && !locked) {
+                return '<div class="piece-empty">这位玩家已经放完了所有棋子。</div>';
+            }
+            return pieces.map((piece) => {
+                const index = PIECES.indexOf(piece);
+                return `
+                    <div class="intel-piece-card">
+                        <small>${locked ? '???' : `${index + 1}. ${piece.name}`}</small>
+                        ${renderMiniPiece(piece, color)}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderOpponentIntel(state) {
+            const opponents = getOpponentPlayers(state);
+            if (!opponents.length) {
+                selectedOpponentColor = null;
+                elements.opponentTabs.innerHTML = '';
+                elements.opponentIntelView.innerHTML = '<div class="intel-empty-state">进入联机房间后，这里会显示其他玩家的情报标签。</div>';
+                return;
+            }
+
+            if (!opponents.some((player) => player.color === selectedOpponentColor)) {
+                selectedOpponentColor = opponents[0].color;
+            }
+
+            elements.opponentTabs.innerHTML = '';
+            opponents.forEach((opponent) => {
+                const unlocked = opponentIntelUnlocked.has(opponent.color);
+                const theme = VICTORY_THEMES[opponent.color];
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = [
+                    'opponent-tab',
+                    selectedOpponentColor === opponent.color ? 'active' : '',
+                    unlocked ? 'unlocked' : ''
+                ].filter(Boolean).join(' ');
+                button.style.setProperty('--tab-color', theme.main);
+                button.setAttribute('role', 'tab');
+                button.setAttribute('aria-selected', String(selectedOpponentColor === opponent.color));
+                button.innerHTML = `
+                    <span class="opponent-tab-dot"></span>
+                    <span>${opponent.name}</span>
+                    <span aria-hidden="true">${unlocked ? '🔓' : '🔒'}</span>
+                `;
+                button.addEventListener('click', () => {
+                    selectedOpponentColor = opponent.color;
+                    renderOpponentIntel(transport.getState());
+                });
+                elements.opponentTabs.appendChild(button);
+            });
+
+            const opponent = opponents.find((player) => player.color === selectedOpponentColor) || opponents[0];
+            const unlocked = opponentIntelUnlocked.has(opponent.color);
+            const remainingPieces = PIECES.filter((piece) => opponent.remainingPieceIds.includes(piece.id));
+
+            if (unlocked) {
+                elements.opponentIntelView.innerHTML = `
+                    <div class="intel-summary">
+                        <strong>${opponent.name}的剩余棋子</strong>
+                        <span>剩余 ${remainingPieces.length} 枚 · 已解锁</span>
+                    </div>
+                    <div class="intel-piece-grid">
+                        ${renderIntelPieceCards(remainingPieces, opponent.color)}
+                    </div>
+                `;
+                return;
+            }
+
+            const previewPieces = PIECES.slice(0, 12);
+            elements.opponentIntelView.innerHTML = `
+                <div class="intel-summary">
+                    <strong>${opponent.name}的剩余棋子</strong>
+                    <span>剩余数量已隐藏</span>
+                </div>
+                <div class="intel-piece-grid locked" aria-hidden="true">
+                    ${renderIntelPieceCards(previewPieces, opponent.color, true)}
+                </div>
+                <div class="intel-lock-overlay">
+                    <div class="intel-lock-icon" aria-hidden="true">🔒</div>
+                    <h3>这位玩家的情报已加密</h3>
+                    <p>完整观看 15 秒广告，即可解锁其本局剩余棋子。</p>
+                    <button class="intel-unlock-button" id="intelUnlockSelected" type="button">🎬 观看广告并解锁</button>
+                </div>
+            `;
+            document.getElementById('intelUnlockSelected').addEventListener('click', () => {
+                startOpponentAd(opponent.color);
+            });
+        }
+
+        function clearOpponentAdTimer() {
+            if (opponentAdTimer !== null) {
+                window.clearInterval(opponentAdTimer);
+                opponentAdTimer = null;
+            }
+        }
+
+        function hideOpponentAd() {
+            elements.opponentAdModal.classList.add('hidden');
+            document.body.classList.remove('ad-open');
+        }
+
+        function updateOpponentAdCountdown() {
+            const remainingMs = Math.max(0, opponentAdEndsAt - Date.now());
+            const remainingSeconds = Math.ceil(remainingMs / 1000);
+            const progress = Math.min(100, Math.max(0, 100 - (remainingMs / OPPONENT_AD_DURATION_MS) * 100));
+            elements.opponentAdCountdown.textContent = String(remainingSeconds);
+            elements.opponentAdProgress.style.width = `${progress}%`;
+            if (remainingMs <= 0) finishOpponentAd();
+        }
+
+        function startOpponentAd(color) {
+            const state = transport.getState();
+            const opponent = getOpponentPlayers(state).find((player) => player.color === color);
+            if (!opponent || opponentIntelUnlocked.has(color)) return;
+
+            clearOpponentAdTimer();
+            opponentAdTargetColor = color;
+            opponentAdEndsAt = Date.now() + OPPONENT_AD_DURATION_MS;
+            elements.opponentAdTitle.textContent = `正在解锁${opponent.name}的情报`;
+            elements.opponentAdTarget.textContent = '完整观看后即可查看该玩家本局剩余的所有棋子。';
+            elements.opponentAdProgress.style.width = '0%';
+            elements.opponentAdModal.classList.remove('hidden');
+            document.body.classList.add('ad-open');
+            updateOpponentAdCountdown();
+            opponentAdTimer = window.setInterval(updateOpponentAdCountdown, 250);
+            requestAnimationFrame(() => elements.opponentAdExit.focus());
+        }
+
+        function finishOpponentAd() {
+            const unlockedColor = opponentAdTargetColor;
+            clearOpponentAdTimer();
+            opponentAdTargetColor = null;
+            hideOpponentAd();
+            if (!unlockedColor) return;
+            opponentIntelUnlocked.add(unlockedColor);
+            saveOpponentIntelUnlocks();
+            selectedOpponentColor = unlockedColor;
+            renderOpponentIntel(transport.getState());
+        }
+
+        function cancelOpponentAd() {
+            clearOpponentAdTimer();
+            opponentAdTargetColor = null;
+            hideOpponentAd();
+        }
+
+        function resetOpponentIntelSession() {
+            cancelOpponentAd();
+            opponentIntelUnlocked = new Set();
+            selectedOpponentColor = null;
+        }
+
         function renderMiniPiece(piece, color) {
             const cells = normalize(piece.cells);
             const maxRow = Math.max(...cells.map(([row]) => row));
@@ -1910,27 +2645,70 @@
             }
         }
 
+        function getDisplayedPiecePlayer(state) {
+            if (isInOnlineRoom() && onlineSession.color) {
+                return state.players.find((player) => player.color === onlineSession.color) || getCurrentPlayer(state);
+            }
+            return getCurrentPlayer(state);
+        }
+
+        function canDisplayedPlayerAct(state, displayedPlayer = getDisplayedPiecePlayer(state)) {
+            if (state.status !== 'playing') return false;
+            const currentPlayer = getCurrentPlayer(state);
+            if (!isInOnlineRoom()) return displayedPlayer.id === currentPlayer.id;
+            return onlineSession.room?.status === 'playing'
+                && onlineSession.color === displayedPlayer.color
+                && currentPlayer.color === displayedPlayer.color;
+        }
+
         function renderPieces(state) {
-            const player = getCurrentPlayer(state);
+            const currentPlayer = getCurrentPlayer(state);
+            const displayedPlayer = getDisplayedPiecePlayer(state);
+            const canAct = canDisplayedPlayerAct(state, displayedPlayer);
+            const isShowingMyPieces = isInOnlineRoom() && Boolean(onlineSession.color);
+            const theme = VICTORY_THEMES[displayedPlayer.color] || VICTORY_THEMES.blue;
+            const remainingPieces = PIECES.filter((piece) => displayedPlayer.remainingPieceIds.includes(piece.id));
+
+            elements.sideCard.classList.toggle('your-turn', canAct && isShowingMyPieces);
+            elements.sideCard.style.setProperty('--viewer-color', theme.main);
+            elements.sideCard.style.setProperty('--viewer-glow', theme.glow);
+            elements.pieceList.classList.toggle('read-only', !canAct);
+            elements.pieceOwnerTitle.textContent = isShowingMyPieces ? '我的剩余棋子' : '当前玩家棋子';
+
+            if (!isShowingMyPieces) {
+                elements.pieceOwnerHint.textContent = `${displayedPlayer.name} · 选择棋子后在棋盘落子`;
+            } else if (state.status === 'finished' || onlineSession.room?.status === 'finished') {
+                elements.pieceOwnerHint.textContent = `${displayedPlayer.name} · 本局已结束`;
+            } else if (onlineSession.room?.status !== 'playing') {
+                elements.pieceOwnerHint.textContent = `${displayedPlayer.name} · 等待房主开始对局`;
+            } else if (canAct) {
+                elements.pieceOwnerHint.textContent = `${displayedPlayer.name} · 轮到你了，请选择棋子`;
+            } else {
+                elements.pieceOwnerHint.textContent = `当前轮到${currentPlayer.name} · 这里始终显示你的棋子`;
+            }
+
             elements.pieceList.innerHTML = '';
-            PIECES.forEach((piece, index) => {
-                const available = player.remainingPieceIds.includes(piece.id);
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = [
-                    'piece-button',
-                    state.selectedPieceId === piece.id ? 'selected' : '',
-                    available ? '' : 'used'
-                ].filter(Boolean).join(' ');
-                button.disabled = !available || state.status === 'finished';
-                button.innerHTML = `
-                    <span class="piece-label">${index + 1}. ${piece.name}</span>
-                    <span class="mini-wrap">${renderMiniPiece(piece, player.color)}</span>
-                `;
-                button.addEventListener('click', () => transport.dispatch({ type: 'SELECT_PIECE', pieceId: piece.id }));
-                elements.pieceList.appendChild(button);
-            });
-            elements.remainingCount.textContent = `剩余 ${player.remainingPieceIds.length} 枚`;
+            if (remainingPieces.length === 0) {
+                elements.pieceList.innerHTML = '<div class="piece-empty">你的棋子已经全部放完了，漂亮！</div>';
+            } else {
+                remainingPieces.forEach((piece) => {
+                    const index = PIECES.indexOf(piece);
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = [
+                        'piece-button',
+                        canAct && state.selectedPieceId === piece.id ? 'selected' : ''
+                    ].filter(Boolean).join(' ');
+                    button.disabled = !canAct;
+                    button.innerHTML = `
+                        <span class="piece-label">${index + 1}. ${piece.name}</span>
+                        <span class="mini-wrap">${renderMiniPiece(piece, displayedPlayer.color)}</span>
+                    `;
+                    button.addEventListener('click', () => transport.dispatch({ type: 'SELECT_PIECE', pieceId: piece.id }));
+                    elements.pieceList.appendChild(button);
+                });
+            }
+            elements.remainingCount.textContent = `剩余 ${displayedPlayer.remainingPieceIds.length} 枚`;
         }
 
         function renderScores(state) {
@@ -1954,8 +2732,22 @@
             document.body.classList.remove('victory-open');
         }
 
+        function stopVictorySound() {
+            elements.victorySound.pause();
+            elements.victorySound.currentTime = 0;
+        }
+
+        function playVictorySound() {
+            stopVictorySound();
+            elements.victorySound.volume = 0.78;
+            elements.victorySound.play().catch(() => {
+                // 浏览器若尚未允许有声播放，则静默跳过，不影响结算弹窗。
+            });
+        }
+
         function renderResult(state) {
             if (state.status !== 'finished') {
+                stopVictorySound();
                 elements.resultPanel.classList.add('hidden');
                 elements.resultPanel.innerHTML = '';
                 elements.victoryModal.classList.add('hidden');
@@ -2012,6 +2804,7 @@
                 elements.victoryModal.classList.remove('hidden');
                 document.body.classList.add('victory-open');
                 if (wasHidden) {
+                    playVictorySound();
                     requestAnimationFrame(() => elements.victoryViewBoard.focus());
                 }
             }
@@ -2112,11 +2905,17 @@
                 : `当前将创建：${state.mode} 人 · ${state.boardRows} × ${state.boardCols} 棋盘。`;
             renderBoard(state);
             renderPieces(state);
+            renderOpponentIntel(state);
             renderScores(state);
             renderResult(state);
             renderLog(state);
 
-            const canAutoSkipRest = state.status === 'playing' && !player.autoSkip && player.remainingPieceIds.length <= 10;
+            const displayedPlayer = getDisplayedPiecePlayer(state);
+            const canAct = canDisplayedPlayerAct(state, displayedPlayer);
+            document.querySelectorAll('[data-turn-action]').forEach((button) => {
+                button.disabled = !canAct;
+            });
+            const canAutoSkipRest = canAct && !displayedPlayer.autoSkip && displayedPlayer.remainingPieceIds.length <= 10;
             elements.autoSkipRest.classList.toggle('hidden', !canAutoSkipRest);
             if (currentPreviewAnchor && state.status === 'playing') {
                 requestAnimationFrame(() => showBoardPreview(currentPreviewAnchor.row, currentPreviewAnchor.col));
@@ -2264,6 +3063,7 @@
                 host: client.host,
                 room
             };
+            loadOpponentIntelUnlocks();
             elements.joinRoomId.value = room.roomId;
             saveOnlineSession();
             if (snapshot) {
@@ -2417,6 +3217,7 @@
         function resetOnlineSessionLocally(message = '已离开房间，可以重新选择棋局并创建新房间。') {
             roomUnsubscribes.forEach((unsubscribe) => unsubscribe());
             roomUnsubscribes = [];
+            resetOpponentIntelSession();
             localStorage.removeItem('squareGameFirebaseSession');
             const currentState = transport.getState();
             onlineSession = {
@@ -2668,6 +3469,7 @@
         });
         elements.victoryClose.addEventListener('click', dismissVictoryModal);
         elements.victoryViewBoard.addEventListener('click', dismissVictoryModal);
+        elements.opponentAdExit.addEventListener('click', cancelOpponentAd);
         elements.victoryModal.addEventListener('click', (event) => {
             if (event.target === elements.victoryModal || event.target.classList.contains('victory-backdrop')) {
                 dismissVictoryModal();
@@ -2789,6 +3591,14 @@
         });
 
         document.addEventListener('keydown', (event) => {
+            if (!elements.opponentAdModal.classList.contains('hidden')) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cancelOpponentAd();
+                }
+                return;
+            }
+
             if (event.key === 'Escape' && !elements.victoryModal.classList.contains('hidden')) {
                 event.preventDefault();
                 dismissVictoryModal();
