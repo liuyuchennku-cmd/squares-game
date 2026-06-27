@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isPlayer(roomId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid));
+    }
+
+    function isHost(roomId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
+      allow update: if isHost(roomId)
+        || (
+          isPlayer(roomId)
+          && request.resource.data.mode == resource.data.mode
+          && request.resource.data.boardSize == resource.data.boardSize
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'snapshot',
+            'status',
+            'lastActionType',
+            'lastActionBy',
+            'updatedAt'
+          ])
+        );
+
+      match /players/{playerId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.auth.uid == playerId;
+        allow update: if signedIn() && (request.auth.uid == playerId || isHost(roomId));
+      }
+
+      match /colorSeats/{color} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      }
+
+      match /results/{resultId} {
+        allow read: if signedIn();
+        allow create: if isPlayer(roomId);
+      }
+    }
+
+    // 原型版排行榜：允许已登录用户写入。正式版建议改为 Cloud Functions 由服务端结算。
+    match /rankings/{userId} {
+      allow read: if true;
+      allow create, update: if signedIn();
+    }
+  }
+}
