@@ -1491,7 +1491,7 @@
 
         @media (max-width: 560px) {
             :root {
-                --cell-size: 30px;
+                --cell-size: clamp(11px, calc((100vw - 76px) / 20), 15px);
             }
 
             .app {
@@ -1518,40 +1518,193 @@
                 width: 100%;
             }
 
-            .actions {
-                position: sticky;
-                bottom: 8px;
-                z-index: 20;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                border: 1px solid var(--line);
-                border-radius: 18px;
-                background: rgba(255,255,255,0.92);
-                box-shadow: 0 14px 36px rgba(24,33,47,0.18);
-                padding: 10px;
+            .mode-panel {
+                gap: 12px;
+            }
+
+            .mode-buttons {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                width: 100%;
+            }
+
+            .mode-button {
+                min-width: 0;
+                padding: 10px 8px;
+            }
+
+            .mode-button strong {
+                font-size: 16px;
+            }
+
+            .game-layout {
+                gap: 12px;
+                grid-template-areas:
+                    "board"
+                    "toolbar"
+                    "side";
+            }
+
+            .game-toolbar {
+                gap: 10px;
+                grid-template-areas:
+                    "turn"
+                    "message"
+                    "actions";
             }
 
             .game-toolbar .actions {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                position: static;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                margin: 0;
+            }
+
+            .actions {
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                background: rgba(255,255,255,0.94);
+                box-shadow: none;
+                gap: 8px;
+                margin: 0;
+                padding: 8px;
             }
 
             .button,
             .link-button {
-                min-height: 44px;
-                padding: 0 12px;
+                min-height: 40px;
+                padding: 0 10px;
             }
 
-            .piece-list {
-                grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-                max-height: 420px;
+            .actions .button {
+                border-radius: 14px;
+                box-shadow: none;
+                font-size: 12px;
+                font-weight: 700;
+                min-height: 36px;
+                padding: 0 6px;
             }
 
-            .piece-button {
-                min-height: 78px;
+            #passTurn,
+            #restartRound,
+            #endGame {
+                grid-column: span 2;
+            }
+
+            #autoSkipRest {
+                grid-column: 1 / -1;
+            }
+
+            .game-toolbar .player-card {
+                padding: 12px 14px;
+            }
+
+            .player-card h2 {
+                font-size: 20px;
+                margin-bottom: 4px;
+            }
+
+            .turn-label {
+                margin-bottom: 3px;
+            }
+
+            .message {
+                font-size: 12px;
+                min-height: auto;
+                padding: 10px 12px;
             }
 
             .shortcut-help {
-                font-size: 12px;
+                display: none;
+            }
+
+            .board-card {
+                padding: 12px;
+            }
+
+            .board-header {
+                margin-bottom: 10px;
+            }
+
+            .board-title {
+                font-size: 17px;
+            }
+
+            .status-pill {
+                font-size: 11px;
+                padding: 6px 10px;
+            }
+
+            .board-scroll {
+                align-items: center;
+                display: flex;
+                justify-content: center;
+                min-height: clamp(220px, 42dvh, 360px);
+                overflow: hidden;
+                padding: 10px;
+            }
+
+            .board {
+                margin: 0 auto;
+            }
+
+            .side-card {
+                display: grid;
+                gap: 10px;
+                grid-template-rows: auto minmax(0, 1fr);
+                padding: 12px;
+            }
+
+            .pieces-title {
+                margin: 0;
+            }
+
+            .pieces-title h3 {
+                font-size: 15px;
+            }
+
+            .piece-owner-hint {
+                font-size: 11px;
+                line-height: 1.45;
+            }
+
+            .piece-list {
+                gap: 6px;
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                max-height: none;
+                overflow: visible;
+                padding-right: 0;
+            }
+
+            .piece-button {
+                border-radius: 14px;
+                min-height: 48px;
+                padding: 4px;
+            }
+
+            .piece-label {
+                display: none;
+            }
+
+            .mini-piece {
+                gap: 1px;
+            }
+
+            .mini-cell {
+                height: 7px;
+                width: 7px;
+            }
+
+            .score-title,
+            .log-title,
+            .score-grid,
+            .log-list,
+            .opponent-intel {
+                display: none;
+            }
+
+            .result {
+                border-radius: 16px;
+                margin-top: 0;
+                padding: 10px 12px;
             }
 
             .victory-modal {
