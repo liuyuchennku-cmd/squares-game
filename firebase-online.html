@@ -655,6 +655,10 @@
             grid-column: 1 / -1;
         }
 
+        .mobile-only {
+            display: none;
+        }
+
         .message {
             border-radius: 16px;
             background: #fff8e6;
@@ -1744,6 +1748,228 @@
                 display: none;
             }
         }
+
+        body.mobile-piece-dragging {
+            user-select: none;
+        }
+
+        body.mobile-piece-dragging .board-scroll {
+            box-shadow: inset 0 0 0 2px rgba(30,136,229,0.24);
+        }
+
+        @media (max-width: 980px) {
+            .mobile-only {
+                display: inline-flex;
+            }
+
+            .topbar,
+            .online-panel,
+            .game-layout {
+                gap: 14px;
+            }
+
+            .game-layout {
+                grid-template-areas:
+                    "board"
+                    "toolbar"
+                    "side";
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-rows: minmax(0, auto) auto auto;
+            }
+
+            .game-toolbar {
+                gap: 10px;
+                grid-template-areas:
+                    "turn"
+                    "message"
+                    "actions";
+                grid-template-columns: 1fr;
+            }
+
+            .game-toolbar .actions {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                margin: 0;
+            }
+
+            .actions {
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                background: rgba(255,255,255,0.94);
+                box-shadow: none;
+                gap: 8px;
+                margin: 0;
+                padding: 10px;
+            }
+
+            .actions .button {
+                border-radius: 14px;
+                box-shadow: none;
+                font-size: 12px;
+                font-weight: 700;
+                min-height: 38px;
+                padding: 0 8px;
+            }
+
+            #confirmPlacement,
+            #clearPreview,
+            #passTurn,
+            #restartRound,
+            #endGame {
+                grid-column: span 2;
+            }
+
+            #autoSkipRest {
+                grid-column: 1 / -1;
+            }
+
+            .shortcut-help,
+            .opponent-intel,
+            .score-title,
+            .score-grid,
+            .log-title,
+            .log-list {
+                display: none;
+            }
+
+            .board-card,
+            .game-toolbar,
+            .side-card {
+                padding: 14px;
+            }
+
+            .board-scroll {
+                align-items: center;
+                display: flex;
+                justify-content: center;
+                min-height: clamp(280px, 43dvh, 420px);
+                overflow: hidden;
+                padding: 10px;
+            }
+
+            .board {
+                margin: 0 auto;
+            }
+
+            .message {
+                font-size: 12px;
+                min-height: auto;
+                padding: 10px 12px;
+            }
+
+            .side-card {
+                display: grid;
+                gap: 10px;
+                grid-template-rows: auto minmax(0, 1fr);
+            }
+
+            .pieces-title {
+                margin: 0;
+            }
+
+            .piece-owner-hint {
+                font-size: 11px;
+                line-height: 1.45;
+            }
+
+            .piece-list {
+                gap: 8px;
+                grid-template-columns: repeat(7, minmax(0, 1fr));
+                max-height: none;
+                overflow: visible;
+                padding-right: 0;
+            }
+
+            .piece-button {
+                border-radius: 14px;
+                min-height: 60px;
+                padding: 6px 4px;
+                touch-action: none;
+            }
+
+            .piece-label {
+                display: none;
+            }
+
+            .mini-piece {
+                gap: 1px;
+            }
+
+            .mini-cell {
+                height: 8px;
+                width: 8px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            :root {
+                --cell-size: clamp(11px, calc((100vw - 76px) / 20), 15px);
+            }
+
+            .app {
+                padding: 12px;
+            }
+
+            .mode-panel {
+                gap: 12px;
+            }
+
+            .mode-buttons {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                width: 100%;
+            }
+
+            .mode-button {
+                min-width: 0;
+                padding: 10px 8px;
+            }
+
+            .mode-button strong {
+                font-size: 16px;
+            }
+
+            .game-layout {
+                gap: 12px;
+            }
+
+            .board-scroll {
+                min-height: clamp(230px, 38dvh, 320px);
+                padding: 8px;
+            }
+
+            .game-toolbar .player-card {
+                padding: 12px 14px;
+            }
+
+            .player-card h2 {
+                font-size: 20px;
+                margin-bottom: 4px;
+            }
+
+            .turn-label {
+                margin-bottom: 3px;
+            }
+
+            .status-pill {
+                font-size: 11px;
+                padding: 6px 10px;
+            }
+
+            .piece-list {
+                gap: 6px;
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+            }
+
+            .piece-button {
+                min-height: 48px;
+                padding: 4px;
+            }
+
+            .mini-cell {
+                height: 7px;
+                width: 7px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1821,16 +2047,17 @@
                     <p id="currentPlayerHint">请选择一枚棋子开始。</p>
                 </section>
 
-                <div class="actions" aria-label="棋子操作">
-                    <button class="button" id="rotateLeft" data-turn-action>左旋转</button>
-                    <button class="button" id="rotateRight" data-turn-action>右旋转</button>
-                    <button class="button" id="flipPiece" data-turn-action>沿 X 轴翻转</button>
-                    <button class="button danger" id="passTurn" data-turn-action>跳过回合</button>
-                    <button class="button" id="restartRound">重新开始本局</button>
-                    <button class="button warning" id="endGame">手动结束游戏</button>
-                    <button class="button warning full hidden" id="autoSkipRest" data-turn-action>无子可下，之后均跳过</button>
+                                <div class="actions" aria-label="妫嬪瓙鎿嶄綔">
+                    <button class="button" id="rotateLeft" data-turn-action>宸︽棆杞?/button>
+                    <button class="button" id="rotateRight" data-turn-action>鍙虫棆杞?/button>
+                    <button class="button" id="flipPiece" data-turn-action>娌?X 杞寸炕杞?/button>
+                    <button class="button primary mobile-only" id="confirmPlacement" type="button">Confirm</button>
+                    <button class="button mobile-only" id="clearPreview" type="button">Clear</button>
+                    <button class="button danger" id="passTurn" data-turn-action>璺宠繃鍥炲悎</button>
+                    <button class="button" id="restartRound">閲嶆柊寮€濮嬫湰灞€</button>
+                    <button class="button warning" id="endGame">鎵嬪姩缁撴潫娓告垙</button>
+                    <button class="button warning full hidden" id="autoSkipRest" data-turn-action>鏃犲瓙鍙笅锛屼箣鍚庡潎璺宠繃</button>
                 </div>
-
                 <div class="message" id="message">选择棋子后，桌面端点击棋盘格即可落子；手机端先点一次预览，再点同一位置确认。</div>
 
                 <div class="shortcut-help">快捷键：选中棋子后，按 ← 向左旋转，按 → 向右旋转，按 ↑ / ↓ 沿 X 轴翻转；鼠标移到棋盘目标位置后，按 Enter 确认落子。</div>
@@ -2433,6 +2660,8 @@
             victoryClose: document.getElementById('victoryClose'),
             victoryViewBoard: document.getElementById('victoryViewBoard'),
             autoSkipRest: document.getElementById('autoSkipRest'),
+            confirmPlacement: document.getElementById('confirmPlacement'),
+            clearPreview: document.getElementById('clearPreview'),
             playerName: document.getElementById('playerName'),
             joinRoomId: document.getElementById('joinRoomId'),
             createRoom: document.getElementById('createRoom'),
@@ -2450,6 +2679,11 @@
 
         let currentPreviewAnchor = null;
         let suppressNextBoardClick = false;
+        const mobileLayoutQuery = window.matchMedia('(max-width: 980px)');
+        let lastMobileBoardTap = null;
+        let pieceTouchHoldTimer = 0;
+        let mobilePieceTouch = null;
+        let suppressPieceClickUntil = 0;
         let applyingRemoteSnapshot = false;
         let victoryModalDismissed = false;
         let bgmWantsToPlay = true;
@@ -2472,6 +2706,186 @@
             host: false,
             room: null
         };
+
+        if (elements.confirmPlacement) elements.confirmPlacement.textContent = '\u786e\u8ba4\u843d\u5b50';
+        if (elements.clearPreview) elements.clearPreview.textContent = '\u53d6\u6d88\u9884\u89c8';
+        const actionButtonLabels = {
+            rotateLeft: '\u5de6\u65cb\u8f6c',
+            rotateRight: '\u53f3\u65cb\u8f6c',
+            flipPiece: '\u6cbf X \u8f74\u7ffb\u8f6c',
+            passTurn: '\u8df3\u8fc7\u56de\u5408',
+            restartRound: '\u91cd\u65b0\u5f00\u59cb\u672c\u5c40',
+            endGame: '\u624b\u52a8\u7ed3\u675f\u6e38\u620f',
+            autoSkipRest: '\u65e0\u5b50\u53ef\u4e0b\uff0c\u4e4b\u540e\u5747\u8df3\u8fc7'
+        };
+        Object.entries(actionButtonLabels).forEach(([id, label]) => {
+            const button = document.getElementById(id);
+            if (button) button.textContent = label;
+        });
+        const actionPanel = document.querySelector('.actions[aria-label]');
+        if (actionPanel) actionPanel.setAttribute('aria-label', '\u68cb\u5b50\u64cd\u4f5c');
+
+        function isMobileLayout() {
+            return mobileLayoutQuery.matches;
+        }
+
+        function canCurrentViewerAct(state = transport.getState()) {
+            const displayedPlayer = getDisplayedPiecePlayer(state);
+            return canDisplayedPlayerAct(state, displayedPlayer);
+        }
+
+        function hasPreviewPlacement(state = transport.getState()) {
+            if (!currentPreviewAnchor || !state.selectedCells || state.status !== 'playing') return false;
+            const player = getCurrentPlayer(state);
+            return validatePlacement(state, player, state.selectedCells, currentPreviewAnchor.row, currentPreviewAnchor.col).ok;
+        }
+
+        function updateMobileControls(state = transport.getState()) {
+            if (!elements.confirmPlacement || !elements.clearPreview) return;
+            const canAct = canCurrentViewerAct(state);
+            elements.confirmPlacement.disabled = !(canAct && hasPreviewPlacement(state));
+            elements.clearPreview.disabled = !(canAct && currentPreviewAnchor);
+        }
+
+        function setMobilePlacementMessage(message) {
+            if (!isMobileLayout()) return;
+            transport.dispatch({ type: 'SET_MESSAGE', message });
+        }
+
+        function confirmCurrentPreview() {
+            if (!currentPreviewAnchor) return;
+            const state = transport.getState();
+            if (!hasPreviewPlacement(state)) {
+                setMobilePlacementMessage('\u5f53\u524d\u4f4d\u7f6e\u8fd8\u4e0d\u80fd\u843d\u5b50\uff0c\u8bf7\u7ee7\u7eed\u62d6\u52a8\u6216\u6362\u4e2a\u4f4d\u7f6e\u3002');
+                updateMobileControls(state);
+                return;
+            }
+            lastMobileBoardTap = null;
+            transport.dispatch({
+                type: 'PLACE_PIECE',
+                row: currentPreviewAnchor.row,
+                col: currentPreviewAnchor.col
+            });
+        }
+
+        function handleMobileBoardIntent(row, col) {
+            const state = transport.getState();
+            if (!state.selectedCells || state.status !== 'playing') return;
+            const isSameCell = currentPreviewAnchor?.row === row && currentPreviewAnchor?.col === col;
+            const now = Date.now();
+            const shouldConfirm = isSameCell
+                && lastMobileBoardTap
+                && lastMobileBoardTap.row === row
+                && lastMobileBoardTap.col === col
+                && now - lastMobileBoardTap.time < 460;
+
+            showBoardPreview(row, col);
+            const valid = hasPreviewPlacement(transport.getState());
+
+            if (shouldConfirm && valid) {
+                confirmCurrentPreview();
+                return;
+            }
+
+            lastMobileBoardTap = { row, col, time: now };
+            setMobilePlacementMessage(valid
+                ? '\u5df2\u9884\u89c8\u5230\u76ee\u6807\u4f4d\u7f6e\u3002\u518d\u6b21\u70b9\u540c\u4e00\u683c\uff0c\u6216\u70b9\u201c\u786e\u8ba4\u843d\u5b50\u201d\u3002'
+                : '\u8fd9\u4e2a\u4f4d\u7f6e\u6682\u65f6\u4e0d\u80fd\u843d\u5b50\uff0c\u53ef\u4ee5\u7ee7\u7eed\u62d6\u52a8\u6216\u6362\u4e2a\u4f4d\u7f6e\u3002');
+        }
+
+        function cancelMobilePieceTouch() {
+            if (pieceTouchHoldTimer) {
+                clearTimeout(pieceTouchHoldTimer);
+                pieceTouchHoldTimer = 0;
+            }
+            document.body.classList.remove('mobile-piece-dragging');
+            mobilePieceTouch = null;
+        }
+
+        function beginMobilePieceTouch(event, pieceId) {
+            if (!isMobileLayout()) return;
+            const touch = event.touches?.[0];
+            if (!touch) return;
+
+            mobilePieceTouch = {
+                pieceId,
+                startX: touch.clientX,
+                startY: touch.clientY,
+                dragging: false,
+                holdTriggered: false,
+                previewed: false
+            };
+
+            if (transport.getState().selectedPieceId !== pieceId) {
+                transport.dispatch({ type: 'SELECT_PIECE', pieceId });
+            }
+
+            pieceTouchHoldTimer = window.setTimeout(() => {
+                if (!mobilePieceTouch || mobilePieceTouch.pieceId !== pieceId || mobilePieceTouch.dragging) return;
+                mobilePieceTouch.holdTriggered = true;
+                suppressPieceClickUntil = Date.now() + 480;
+                lastMobileBoardTap = null;
+                transport.dispatch({ type: 'SELECT_PIECE', pieceId });
+                transport.dispatch({ type: 'FLIP_PIECE' });
+                setMobilePlacementMessage('\u5df2\u7ffb\u8f6c\u9009\u4e2d\u68cb\u5b50\u3002\u62d6\u5230\u68cb\u76d8\u9884\u89c8\u540e\uff0c\u518d\u70b9\u786e\u8ba4\u843d\u5b50\u3002');
+            }, 380);
+        }
+
+        function moveMobilePieceTouch(event) {
+            if (!isMobileLayout() || !mobilePieceTouch) return;
+            const touch = event.touches?.[0];
+            if (!touch) return;
+
+            const moved = Math.hypot(touch.clientX - mobilePieceTouch.startX, touch.clientY - mobilePieceTouch.startY);
+            if (!mobilePieceTouch.dragging && moved < 12) return;
+
+            if (pieceTouchHoldTimer) {
+                clearTimeout(pieceTouchHoldTimer);
+                pieceTouchHoldTimer = 0;
+            }
+
+            mobilePieceTouch.dragging = true;
+            suppressPieceClickUntil = Date.now() + 480;
+            document.body.classList.add('mobile-piece-dragging');
+
+            if (transport.getState().selectedPieceId !== mobilePieceTouch.pieceId) {
+                transport.dispatch({ type: 'SELECT_PIECE', pieceId: mobilePieceTouch.pieceId });
+            }
+
+            const cell = getBoardCellFromPoint(touch.clientX, touch.clientY);
+            if (!cell) return;
+
+            event.preventDefault();
+            mobilePieceTouch.previewed = true;
+            showBoardPreview(cell.row, cell.col);
+        }
+
+        function endMobilePieceTouch(event) {
+            if (!isMobileLayout() || !mobilePieceTouch) return;
+            const { dragging, holdTriggered, previewed } = mobilePieceTouch;
+            cancelMobilePieceTouch();
+
+            if (dragging && previewed) {
+                event.preventDefault();
+                suppressPieceClickUntil = Date.now() + 480;
+                lastMobileBoardTap = null;
+                setMobilePlacementMessage(hasPreviewPlacement(transport.getState())
+                    ? '\u5df2\u62d6\u5230\u76ee\u6807\u4f4d\u7f6e\u3002\u518d\u6b21\u70b9\u540c\u4e00\u683c\uff0c\u6216\u70b9\u201c\u786e\u8ba4\u843d\u5b50\u201d\u3002'
+                    : '\u8be5\u9884\u89c8\u4f4d\u7f6e\u8fd8\u4e0d\u80fd\u843d\u5b50\uff0c\u8bf7\u7ee7\u7eed\u62d6\u52a8\u6216\u6362\u4e2a\u4f4d\u7f6e\u3002');
+                return;
+            }
+
+            if (holdTriggered) {
+                event.preventDefault();
+                suppressPieceClickUntil = Date.now() + 480;
+            }
+        }
+
+        mobileLayoutQuery.addEventListener('change', () => {
+            cancelMobilePieceTouch();
+            lastMobileBoardTap = null;
+            updateMobileControls(transport.getState());
+        });
 
         function getSelectedBgm() {
             return BGM_TRACKS[elements.bgmSelect.value] || BGM_TRACKS[DEFAULT_BGM_ID];
@@ -2858,8 +3272,27 @@
                         <span class="piece-label">${index + 1}. ${piece.name}</span>
                         <span class="mini-wrap">${renderMiniPiece(piece, displayedPlayer.color)}</span>
                     `;
-                    button.addEventListener('click', () => transport.dispatch({ type: 'SELECT_PIECE', pieceId: piece.id }));
-                    elements.pieceList.appendChild(button);
+                    button.addEventListener('click', () => {
+                        if (isMobileLayout()) {
+                            if (Date.now() < suppressPieceClickUntil) return;
+                            const currentState = transport.getState();
+                            const isSamePiece = currentState.selectedPieceId === piece.id;
+                            lastMobileBoardTap = null;
+                            transport.dispatch({ type: 'SELECT_PIECE', pieceId: piece.id });
+                            if (isSamePiece) {
+                                transport.dispatch({ type: 'ROTATE_PIECE', direction: 'right' });
+                                setMobilePlacementMessage('\u5df2\u65cb\u8f6c\u9009\u4e2d\u68cb\u5b50\u3002\u62d6\u5230\u68cb\u76d8\u9884\u89c8\u540e\uff0c\u518d\u70b9\u786e\u8ba4\u843d\u5b50\u3002');
+                            } else {
+                                setMobilePlacementMessage('\u5df2\u9009\u4e2d\u68cb\u5b50\u3002\u53ef\u62d6\u5230\u68cb\u76d8\u9884\u89c8\uff0c\u6216\u70b9\u68cb\u76d8\u5b9a\u4f4d\u3002');
+                            }
+                            return;
+                        }
+                        transport.dispatch({ type: 'SELECT_PIECE', pieceId: piece.id });
+                    });
+                    button.addEventListener('touchstart', (event) => beginMobilePieceTouch(event, piece.id), { passive: true });
+                    button.addEventListener('touchmove', (event) => moveMobilePieceTouch(event), { passive: false });
+                    button.addEventListener('touchend', (event) => endMobilePieceTouch(event), { passive: false });
+                    button.addEventListener('touchcancel', () => cancelMobilePieceTouch());                    elements.pieceList.appendChild(button);
                 });
             }
             elements.remainingCount.textContent = `剩余 ${displayedPlayer.remainingPieceIds.length} 枚`;
@@ -3071,6 +3504,7 @@
             });
             const canAutoSkipRest = canAct && !displayedPlayer.autoSkip && displayedPlayer.remainingPieceIds.length <= 10;
             elements.autoSkipRest.classList.toggle('hidden', !canAutoSkipRest);
+            updateMobileControls(state);
             if (currentPreviewAnchor && state.status === 'playing') {
                 requestAnimationFrame(() => showBoardPreview(currentPreviewAnchor.row, currentPreviewAnchor.col));
             }
@@ -3571,12 +4005,19 @@
         document.getElementById('endGame').addEventListener('click', () => {
             confirmAction('确定要手动结束游戏并立即结算吗？', { type: 'END_GAME' });
         });
-        document.getElementById('rotateLeft').addEventListener('click', () => transport.dispatch({ type: 'ROTATE_PIECE', direction: 'left' }));
-        document.getElementById('rotateRight').addEventListener('click', () => transport.dispatch({ type: 'ROTATE_PIECE', direction: 'right' }));
-        document.getElementById('flipPiece').addEventListener('click', () => transport.dispatch({ type: 'FLIP_PIECE' }));
+        document.getElementById('rotateLeft').addEventListener('click', () => { lastMobileBoardTap = null; transport.dispatch({ type: 'ROTATE_PIECE', direction: 'left' }); });
+        document.getElementById('rotateRight').addEventListener('click', () => { lastMobileBoardTap = null; transport.dispatch({ type: 'ROTATE_PIECE', direction: 'right' }); });
+        document.getElementById('flipPiece').addEventListener('click', () => { lastMobileBoardTap = null; transport.dispatch({ type: 'FLIP_PIECE' }); });
         document.getElementById('passTurn').addEventListener('click', () => transport.dispatch({ type: 'PASS_TURN' }));
-        elements.autoSkipRest.addEventListener('click', () => {
-            confirmAction('确定设置当前玩家之后均自动跳过吗？设置后本局后续回合会自动跳过该玩家。', { type: 'AUTO_SKIP_REST' });
+        elements.confirmPlacement.addEventListener('click', () => {
+            confirmCurrentPreview();
+        });
+        elements.clearPreview.addEventListener('click', () => {
+            lastMobileBoardTap = null;
+            clearBoardPreview();
+            setMobilePlacementMessage('\u5df2\u53d6\u6d88\u9884\u89c8\uff0c\u53ef\u91cd\u65b0\u62d6\u52a8\u68cb\u5b50\u6216\u70b9\u68cb\u76d8\u5b9a\u4f4d\u3002');
+        });
+        elements.autoSkipRest.addEventListener('click', () => {            confirmAction('确定设置当前玩家之后均自动跳过吗？设置后本局后续回合会自动跳过该玩家。', { type: 'AUTO_SKIP_REST' });
         });
         elements.bgmSelect.addEventListener('change', () => {
             setBgmTrack(elements.bgmSelect.value);
@@ -3664,6 +4105,7 @@
                 }
             });
             currentPreviewAnchor = null;
+            updateMobileControls(transport.getState());
         }
 
         function findBoardCell(row, col) {
@@ -3690,6 +4132,7 @@
                     cell.dataset.previewColor = player.color;
                 }
             });
+            updateMobileControls(transport.getState());
         }
 
         elements.board.addEventListener('mousemove', (event) => {
@@ -3713,6 +4156,10 @@
             }
             const cell = getBoardCellFromEvent(event);
             if (!cell) return;
+            if (isMobileLayout()) {
+                handleMobileBoardIntent(cell.row, cell.col);
+                return;
+            }
             transport.dispatch({ type: 'PLACE_PIECE', row: cell.row, col: cell.col });
         });
 
@@ -3729,19 +4176,13 @@
             event.preventDefault();
             suppressNextBoardClick = true;
 
-            const isSamePreview = currentPreviewAnchor?.row === cell.row && currentPreviewAnchor?.col === cell.col;
-            if (isSamePreview) {
-                transport.dispatch({ type: 'PLACE_PIECE', row: cell.row, col: cell.col });
+            if (isMobileLayout()) {
+                handleMobileBoardIntent(cell.row, cell.col);
                 return;
             }
 
-            showBoardPreview(cell.row, cell.col);
-            transport.dispatch({
-                type: 'SET_MESSAGE',
-                message: '已显示预览。手机端请再次点击同一位置确认落子。'
-            });
+            transport.dispatch({ type: 'PLACE_PIECE', row: cell.row, col: cell.col });
         }, { passive: false });
-
         elements.board.addEventListener('keydown', (event) => {
             if (event.key !== 'Enter' && event.key !== ' ') return;
             const cell = getBoardCellFromEvent(event);
