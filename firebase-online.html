@@ -1783,6 +1783,7 @@
         </section>
     </div>
 
+    <script src="./firebase/firebase-config.js"></script>
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
         import {
@@ -1803,7 +1804,7 @@
             setDoc,
             updateDoc
         } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
-        import { firebaseConfig } from './firebase/firebase-config.js';
+        const firebaseConfig = globalThis.firebaseConfig;
 
         const COLORS = {
             blue: { name: '蓝色玩家', css: 'blue' },
@@ -3013,7 +3014,7 @@
                 createdAt: timestampToMillis(roomData.createdAt),
                 updatedAt: timestampToMillis(roomData.updatedAt),
                 clients: players.map((player) => ({
-                    clientId: player.uid,
+                    clientId: player.clientId || player.uid,
                     name: player.name,
                     color: player.color,
                     host: player.host,
@@ -3029,7 +3030,10 @@
             if (!roomSnap.exists()) throw new Error('房间不存在或已过期');
 
             const playersSnap = await getDocs(collection(db, 'rooms', roomId, 'players'));
-            const players = playersSnap.docs.map((item) => item.data());
+            const players = playersSnap.docs.map((item) => ({
+                ...item.data(),
+                uid: item.data().uid || item.id
+            }));
             const client = players.find((player) => player.uid === uid);
             if (!client) throw new Error('未找到该玩家，请重新加入房间');
 
@@ -3310,7 +3314,10 @@
             }));
 
             roomUnsubscribes.push(onSnapshot(playersRef, (playersSnap) => {
-                const players = playersSnap.docs.map((item) => item.data());
+                const players = playersSnap.docs.map((item) => ({
+                    ...item.data(),
+                    uid: item.data().uid || item.id
+                }));
                 const roomData = onlineSession.room || { roomId, mode: transport.getState().mode, boardSize: transport.getState().boardSize };
                 onlineSession.room = publicRoomFromData(roomId, roomData, players);
                 const me = players.find((player) => player.uid === onlineSession.clientId);
@@ -3324,8 +3331,8 @@
             }));
         }
 
-        async function persistFinishedGame(previousState, nextState) {
-            if (previousState.status === 'finished' || nextState.status !== 'finished') return;
+        async function persistFinishedGame(nextState) {
+            if (nextState.status !== 'finished') return;
             const roomId = onlineSession.roomId;
             const finalRef = doc(db, 'rooms', roomId, 'results', 'final');
             const scores = nextState.players.map((player) => ({
@@ -3346,7 +3353,7 @@
                 });
 
                 for (const client of onlineSession.room?.clients || []) {
-                    if (!client.color) continue;
+                    if (!client.clientId || !client.color) continue;
                     const score = scores.find((item) => item.color === client.color);
                     if (!score) continue;
                     transaction.set(doc(db, 'rankings', client.clientId), {
@@ -3375,7 +3382,7 @@
                 lastActionBy: onlineSession.clientId,
                 updatedAt: serverTimestamp()
             }).then(() => {
-                return persistFinishedGame(previousState, nextState);
+                return persistFinishedGame(nextState);
             }).catch((error) => {
                 elements.onlineStatus.textContent = error.message;
             });
