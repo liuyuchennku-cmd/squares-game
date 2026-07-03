@@ -1984,18 +1984,17 @@
 
             .game-toolbar {
                 align-items: stretch;
+                display: flex;
+                flex-direction: column;
                 gap: 10px;
-                grid-template-areas:
-                    "turn"
-                    "message"
-                    "actions";
-                grid-template-columns: minmax(0, 1fr);
             }
 
             .game-toolbar .player-card,
             .game-toolbar .message,
             .game-toolbar .actions {
-                justify-self: stretch;
+                flex: 0 0 auto;
+                justify-self: auto;
+                max-width: 100%;
             }
 
             .game-toolbar .actions {
