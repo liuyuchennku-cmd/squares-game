@@ -4020,10 +4020,7 @@
                     throw error;
                 });
             }
-            return withTimeout(authReadyPromise, 12000, getFirebaseTimeoutMessage()).catch((error) => {
-                authReadyPromise = null;
-                throw error;
-            });
+            return authReadyPromise;
         }
         function makeRoomId() {
             const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -4165,7 +4162,7 @@
                 const colorSeatRef = doc(db, 'rooms', roomId, 'colorSeats', 'blue');
 
                 try {
-                    await withTimeout(runTransaction(db, async (transaction) => {
+                    await runTransaction(db, async (transaction) => {
                         const existingRoom = await transaction.get(roomRef);
                         if (existingRoom.exists()) throw new Error('ROOM_ID_COLLISION');
 
@@ -4194,14 +4191,10 @@
                             joinedAt: serverTimestamp(),
                             lastSeen: serverTimestamp()
                         });
-                    }), 20000, '创建房间超时。请检查手机网络后重试。');
+                    });
 
                     setOnlineProgress('房间已创建，正在读取房间数据...');
-                    const session = await withTimeout(
-                        loadRoomSession(roomId, user.uid),
-                        12000,
-                        '房间已经写入，但读取房间数据超时。请使用“重连上次房间”。'
-                    );
+                    const session = await loadRoomSession(roomId, user.uid);
                     setOnlineSession(session);
                     return;
                 } catch (error) {
@@ -4222,7 +4215,7 @@
             setOnlineProgress('\u6b63\u5728\u52a0\u5165\u623f\u95f4...');
             const name = elements.playerName.value.trim() || '玩家';
 
-            await withTimeout(runTransaction(db, async (transaction) => {
+            await runTransaction(db, async (transaction) => {
                 const roomRef = doc(db, 'rooms', roomId);
                 const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
                 const roomSnap = await transaction.get(roomRef);
@@ -4265,14 +4258,10 @@
                     joinedAt: serverTimestamp(),
                     lastSeen: serverTimestamp()
                 });
-            }), 20000, '加入房间超时。请确认房间号和手机网络后重试。');
+            });
 
             setOnlineProgress('已加入房间，正在同步房间数据...');
-            const session = await withTimeout(
-                loadRoomSession(roomId, user.uid),
-                12000,
-                '已加入房间，但同步数据超时。请使用“重连上次房间”。'
-            );
+            const session = await loadRoomSession(roomId, user.uid);
             setOnlineSession(session);
         }
 
