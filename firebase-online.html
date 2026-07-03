@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:,">
     <title>方格游戏 Firebase 云联机版</title>
     <style>
         :root {
@@ -2126,8 +2127,13 @@
             }
 
             .app.mobile-landscape-gameplay .player-card {
+                display: none;
                 border-radius: 16px;
                 padding: 10px 12px;
+            }
+
+            .app.mobile-landscape-gameplay.mobile-actions-expanded .player-card {
+                display: block;
             }
 
             .app.mobile-landscape-gameplay .player-card h2 {
@@ -2302,7 +2308,7 @@
                     <button class="button" id="reconnectRoom">重连上次房间</button>
                 </div>
                 <p class="online-status" id="selectedRoomMode">当前将创建：4 人 · 20 × 20 棋盘。</p>
-                <p class="online-status" id="onlineStatus">尚未进入房间。先选择人数和棋盘，再创建房间。</p>
+                <p class="online-status" id="onlineStatus" role="status" aria-live="polite">尚未进入房间。先选择人数和棋盘，再创建房间。</p>
             </div>
             <div class="online-card">
                 <p class="room-code"><span class="label">当前房间：</span><strong id="roomCode">----</strong><button class="button" id="copyRoomCode">复制房间号</button></p>
@@ -3015,13 +3021,32 @@
             return isMobileLayout()
                 && mobileOrientationQuery.matches
                 && isInOnlineRoom()
-                && onlineSession.room?.status === 'playing';
+                && onlineSession.room?.status !== 'closed';
         }
 
         let mobileActionsExpanded = false;
 
+        function updateMobileBoardSize(state, compactGameplay) {
+            if (!appRoot) return;
+            if (!compactGameplay) {
+                appRoot.style.removeProperty('--cell-size');
+                return;
+            }
+
+            const viewportHeight = window.visualViewport?.height || window.innerHeight;
+            const viewportWidth = window.visualViewport?.width || window.innerWidth;
+            const sideWidth = Math.max(220, viewportWidth * 0.34);
+            const boardWidth = viewportWidth - sideWidth - 68;
+            const boardHeight = viewportHeight - 90;
+            const widthCell = Math.floor((boardWidth - Math.max(0, state.boardCols - 1)) / state.boardCols);
+            const heightCell = Math.floor((boardHeight - Math.max(0, state.boardRows - 1)) / state.boardRows);
+            const cellSize = Math.max(9, Math.min(24, widthCell, heightCell));
+            appRoot.style.setProperty('--cell-size', `${cellSize}px`);
+        }
+
         function updateMobileLayoutState(state = transport.getState()) {
             const compactGameplay = isMobileLandscapeGameplay(state);
+            updateMobileBoardSize(state, compactGameplay);
             if (appRoot) {
                 appRoot.classList.toggle('mobile-landscape-gameplay', compactGameplay);
                 appRoot.classList.toggle('mobile-actions-expanded', compactGameplay && mobileActionsExpanded);
@@ -3051,19 +3076,53 @@
         }
 
         function withTimeout(promise, ms, message) {
+            let timeoutId = 0;
             return Promise.race([
                 promise,
                 new Promise((_, reject) => {
-                    window.setTimeout(() => reject(new Error(message)), ms);
+                    timeoutId = window.setTimeout(() => reject(new Error(message)), ms);
                 })
-            ]);
+            ]).finally(() => window.clearTimeout(timeoutId));
+        }
+
+        function getFriendlyOnlineError(error, fallbackMessage) {
+            const code = error?.code || '';
+            if (code.includes('permission-denied')) {
+                return 'Firebase 拒绝了房间操作。请检查 Firestore 安全规则是否已部署。';
+            }
+            if (code.includes('unavailable') || code.includes('network-request-failed')) {
+                return '暂时无法连接 Firebase。请检查手机网络后重试。';
+            }
+            if (code.includes('unauthorized-domain')) {
+                return `当前域名 ${location.hostname || '本地文件'} 未加入 Firebase Authorized domains。`;
+            }
+            return error?.message || fallbackMessage;
         }
 
         function showOnlineError(error, fallbackMessage = '\u8054\u673a\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002') {
-            const message = error?.message || fallbackMessage;
+            const message = getFriendlyOnlineError(error, fallbackMessage);
             elements.onlineStatus.textContent = message;
             if (isMobileLayout()) {
                 window.alert(message);
+            }
+        }
+
+        async function runOnlineButtonAction(button, busyLabel, action, fallbackMessage) {
+            if (button.dataset.busy === 'true') return;
+            const idleLabel = button.textContent;
+            button.dataset.busy = 'true';
+            button.disabled = true;
+            button.textContent = busyLabel;
+            button.setAttribute('aria-busy', 'true');
+            try {
+                await action();
+            } catch (error) {
+                showOnlineError(error, fallbackMessage);
+            } finally {
+                button.dataset.busy = 'false';
+                button.disabled = false;
+                button.textContent = idleLabel;
+                button.removeAttribute('aria-busy');
             }
         }
 
@@ -3240,6 +3299,10 @@
         });
 
         mobileOrientationQuery.addEventListener('change', () => {
+            updateMobileLayoutState(transport.getState());
+        });
+
+        window.addEventListener('resize', () => {
             updateMobileLayoutState(transport.getState());
         });
 
@@ -3881,10 +3944,12 @@
                 return Promise.reject(new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。'));
             }
             if (currentUser && db) return Promise.resolve(currentUser);
-            if (!authReadyPromise) {
+            if (!firebaseApp) {
                 firebaseApp = initializeApp(firebaseConfig);
                 db = getFirestore(firebaseApp);
                 auth = getAuth(firebaseApp);
+            }
+            if (!authReadyPromise) {
                 authReadyPromise = new Promise((resolve, reject) => {
                     const unsubscribe = onAuthStateChanged(auth, (user) => {
                         if (user) {
@@ -3897,11 +3962,13 @@
                         unsubscribe();
                         reject(error);
                     });
+                }).catch((error) => {
+                    authReadyPromise = null;
+                    throw error;
                 });
             }
             return withTimeout(authReadyPromise, 12000, getFirebaseTimeoutMessage());
         }
-
         function makeRoomId() {
             const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
             let id = '';
@@ -4042,7 +4109,7 @@
                 const colorSeatRef = doc(db, 'rooms', roomId, 'colorSeats', 'blue');
 
                 try {
-                    await runTransaction(db, async (transaction) => {
+                    await withTimeout(runTransaction(db, async (transaction) => {
                         const existingRoom = await transaction.get(roomRef);
                         if (existingRoom.exists()) throw new Error('ROOM_ID_COLLISION');
 
@@ -4071,9 +4138,15 @@
                             joinedAt: serverTimestamp(),
                             lastSeen: serverTimestamp()
                         });
-                    });
+                    }), 20000, '创建房间超时。请检查手机网络后重试。');
 
-                    setOnlineSession(await loadRoomSession(roomId, user.uid));
+                    setOnlineProgress('房间已创建，正在读取房间数据...');
+                    const session = await withTimeout(
+                        loadRoomSession(roomId, user.uid),
+                        12000,
+                        '房间已经写入，但读取房间数据超时。请使用“重连上次房间”。'
+                    );
+                    setOnlineSession(session);
                     return;
                 } catch (error) {
                     if (error.message !== 'ROOM_ID_COLLISION') throw error;
@@ -4084,17 +4157,16 @@
         }
 
         async function joinOnlineRoom() {
+            const roomId = elements.joinRoomId.value.trim().toUpperCase();
+            if (!roomId) {
+                throw new Error('请输入房间号。');
+            }
             setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
             setOnlineProgress('\u6b63\u5728\u52a0\u5165\u623f\u95f4...');
-            const roomId = elements.joinRoomId.value.trim().toUpperCase();
-            if (!roomId) {
-                elements.onlineStatus.textContent = '请输入房间号。';
-                return;
-            }
             const name = elements.playerName.value.trim() || '玩家';
 
-            await runTransaction(db, async (transaction) => {
+            await withTimeout(runTransaction(db, async (transaction) => {
                 const roomRef = doc(db, 'rooms', roomId);
                 const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
                 const roomSnap = await transaction.get(roomRef);
@@ -4137,9 +4209,15 @@
                     joinedAt: serverTimestamp(),
                     lastSeen: serverTimestamp()
                 });
-            });
+            }), 20000, '加入房间超时。请确认房间号和手机网络后重试。');
 
-            setOnlineSession(await loadRoomSession(roomId, user.uid));
+            setOnlineProgress('已加入房间，正在同步房间数据...');
+            const session = await withTimeout(
+                loadRoomSession(roomId, user.uid),
+                12000,
+                '已加入房间，但同步数据超时。请使用“重连上次房间”。'
+            );
+            setOnlineSession(session);
         }
 
         async function startOnlineRoom() {
@@ -4281,9 +4359,8 @@
             }));
         }
 
-        async function persistFinishedGame(nextState) {
-            if (nextState.status !== 'finished') return;
-            const roomId = onlineSession.roomId;
+        async function persistFinishedGame(nextState, roomId, roomClients) {
+            if (nextState.status !== 'finished' || !roomId || !db) return;
             const finalRef = doc(db, 'rooms', roomId, 'results', 'final');
             const scores = nextState.players.map((player) => ({
                 color: player.color,
@@ -4302,8 +4379,8 @@
                     finishedAt: serverTimestamp()
                 });
 
-                for (const client of onlineSession.room?.clients || []) {
-                    if (!client.clientId || !client.color) continue;
+                for (const client of roomClients) {
+                    if (typeof client.clientId !== 'string' || !client.clientId || !client.color) continue;
                     const score = scores.find((item) => item.color === client.color);
                     if (!score) continue;
                     transaction.set(doc(db, 'rankings', client.clientId), {
@@ -4322,17 +4399,20 @@
             const syncActions = new Set(['START_GAME', 'RESET_GAME', 'END_GAME', 'SELECT_PIECE', 'ROTATE_PIECE', 'FLIP_PIECE', 'PLACE_PIECE', 'PASS_TURN', 'AUTO_SKIP_REST']);
             if (applyingRemoteSnapshot || !isInOnlineRoom() || !syncActions.has(action.type) || previousState === nextState) return;
 
-            const roomRef = doc(db, 'rooms', onlineSession.roomId);
+            const roomId = onlineSession.roomId;
+            const clientId = onlineSession.clientId;
+            const roomClients = [...(onlineSession.room?.clients || [])];
+            const roomRef = doc(db, 'rooms', roomId);
             updateDoc(roomRef, {
                 snapshot: encodeGameStateForFirestore(nextState),
                 mode: nextState.mode,
                 boardSize: nextState.boardSize,
                 status: nextState.status === 'finished' ? 'finished' : 'playing',
                 lastActionType: action.type,
-                lastActionBy: onlineSession.clientId,
+                lastActionBy: clientId,
                 updatedAt: serverTimestamp()
             }).then(() => {
-                return persistFinishedGame(nextState);
+                return persistFinishedGame(nextState, roomId, roomClients);
             }).catch((error) => {
                 elements.onlineStatus.textContent = error.message;
             });
@@ -4403,16 +4483,20 @@
             updateBgmControls(`${getSelectedBgm().label} · 音频加载失败`, true);
         });
         elements.createRoom.addEventListener('click', () => {
-            setOnlineProgress('\u6b63\u5728\u521b\u5efa\u623f\u95f4...');
-            createOnlineRoom().catch((error) => {
-                showOnlineError(error, '\u521b\u5efa\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002');
-            });
+            runOnlineButtonAction(
+                elements.createRoom,
+                '创建中…',
+                createOnlineRoom,
+                '\u521b\u5efa\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002'
+            );
         });
         elements.joinRoom.addEventListener('click', () => {
-            setOnlineProgress('\u6b63\u5728\u52a0\u5165\u623f\u95f4...');
-            joinOnlineRoom().catch((error) => {
-                showOnlineError(error, '\u52a0\u5165\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002');
-            });
+            runOnlineButtonAction(
+                elements.joinRoom,
+                '加入中…',
+                joinOnlineRoom,
+                '\u52a0\u5165\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002'
+            );
         });
         elements.startRoom.addEventListener('click', () => {
             startOnlineRoom().catch((error) => {
