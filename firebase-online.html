@@ -2049,6 +2049,198 @@
                 font-size: 13px;
             }
         }
+
+        @media (max-width: 980px) and (orientation: landscape) {
+            .mobile-actions-toggle {
+                display: none;
+            }
+
+            .app.mobile-landscape-gameplay {
+                max-width: none;
+                padding: 8px;
+            }
+
+            .app.mobile-landscape-gameplay .topbar,
+            .app.mobile-landscape-gameplay .mode-panel,
+            .app.mobile-landscape-gameplay .online-panel {
+                display: none;
+            }
+
+            .app.mobile-landscape-gameplay .game-layout {
+                gap: 8px;
+                grid-template-areas: "board side";
+                grid-template-columns: minmax(0, 1fr) minmax(220px, 34vw);
+                grid-template-rows: minmax(0, 1fr);
+                min-height: calc(100dvh - 16px);
+            }
+
+            .app.mobile-landscape-gameplay .board-card,
+            .app.mobile-landscape-gameplay .side-card {
+                border-radius: 18px;
+                padding: 10px;
+            }
+
+            .app.mobile-landscape-gameplay .board-card {
+                display: flex;
+                flex-direction: column;
+                height: calc(100dvh - 16px);
+            }
+
+            .app.mobile-landscape-gameplay .board-header {
+                margin-bottom: 8px;
+            }
+
+            .app.mobile-landscape-gameplay .board-title {
+                font-size: 16px;
+            }
+
+            .app.mobile-landscape-gameplay .status-pill {
+                font-size: 11px;
+                padding: 5px 10px;
+            }
+
+            .app.mobile-landscape-gameplay .board-scroll {
+                flex: 1;
+                min-height: 0;
+                padding: 8px;
+            }
+
+            .app.mobile-landscape-gameplay .game-toolbar {
+                background: transparent;
+                border: 0;
+                box-shadow: none;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding: 0;
+                pointer-events: none;
+                position: fixed;
+                right: 8px;
+                top: 8px;
+                width: min(320px, calc(100vw - 16px));
+                z-index: 30;
+            }
+
+            .app.mobile-landscape-gameplay .game-toolbar > * {
+                pointer-events: auto;
+            }
+
+            .app.mobile-landscape-gameplay .player-card {
+                border-radius: 16px;
+                padding: 10px 12px;
+            }
+
+            .app.mobile-landscape-gameplay .player-card h2 {
+                font-size: 16px;
+                margin-bottom: 2px;
+            }
+
+            .app.mobile-landscape-gameplay .turn-label {
+                font-size: 10px;
+                margin-bottom: 2px;
+            }
+
+            .app.mobile-landscape-gameplay .message,
+            .app.mobile-landscape-gameplay .shortcut-help {
+                display: none;
+            }
+
+            .app.mobile-landscape-gameplay .mobile-actions-toggle {
+                align-self: flex-end;
+                display: inline-flex;
+                font-size: 12px;
+                font-weight: 800;
+                min-height: 34px;
+                padding: 0 12px;
+            }
+
+            .app.mobile-landscape-gameplay .game-toolbar .actions {
+                display: none;
+            }
+
+            .app.mobile-landscape-gameplay.mobile-actions-expanded .game-toolbar {
+                background: rgba(255,255,255,0.96);
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                box-shadow: var(--shadow);
+                padding: 10px;
+                pointer-events: auto;
+            }
+
+            .app.mobile-landscape-gameplay.mobile-actions-expanded .message {
+                display: block;
+                font-size: 12px;
+                min-height: 0;
+                padding: 8px 10px;
+            }
+
+            .app.mobile-landscape-gameplay.mobile-actions-expanded .game-toolbar .actions {
+                display: grid;
+                gap: 6px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .app.mobile-landscape-gameplay.mobile-actions-expanded .actions .button {
+                font-size: 11px;
+                min-height: 38px;
+                padding: 6px 4px;
+            }
+
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #rotateLeft,
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #rotateRight,
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #flipPiece,
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #confirmPlacement,
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #clearPreview,
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #passTurn,
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #restartRound,
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #endGame {
+                grid-column: auto;
+            }
+
+            .app.mobile-landscape-gameplay.mobile-actions-expanded #autoSkipRest {
+                grid-column: 1 / -1;
+            }
+
+            .app.mobile-landscape-gameplay .side-card {
+                display: grid;
+                gap: 6px;
+                grid-template-rows: auto minmax(0, 1fr);
+                height: calc(100dvh - 16px);
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .app.mobile-landscape-gameplay .pieces-title {
+                margin: 0 0 4px;
+            }
+
+            .app.mobile-landscape-gameplay .pieces-title h3 {
+                font-size: 15px;
+            }
+
+            .app.mobile-landscape-gameplay .piece-owner-hint {
+                font-size: 10px;
+            }
+
+            .app.mobile-landscape-gameplay .piece-list {
+                gap: 3px;
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                max-height: none;
+                overflow: hidden;
+                padding-right: 0;
+            }
+
+            .app.mobile-landscape-gameplay .piece-button {
+                border-radius: 9px;
+                min-height: 30px;
+                padding: 2px 1px;
+            }
+
+            .app.mobile-landscape-gameplay .mini-cell {
+                height: 4px;
+                width: 4px;
+            }
+        }
         /* end mobile layout stabilization v2 */
     </style>
 </head>
@@ -2804,9 +2996,75 @@
         });
         const actionPanel = document.querySelector('.actions[aria-label]');
         if (actionPanel) actionPanel.setAttribute('aria-label', '\u68cb\u5b50\u64cd\u4f5c');
+        const appRoot = document.querySelector('.app');
+        const gameToolbar = document.querySelector('.game-toolbar');
+        const mobileOrientationQuery = window.matchMedia('(orientation: landscape)');
+        const mobileActionsToggle = document.createElement('button');
+        mobileActionsToggle.type = 'button';
+        mobileActionsToggle.className = 'button mobile-only mobile-actions-toggle';
+        mobileActionsToggle.textContent = '\u64cd\u4f5c';
+        if (gameToolbar && actionPanel) {
+            gameToolbar.insertBefore(mobileActionsToggle, actionPanel);
+        }
 
         function isMobileLayout() {
             return mobileLayoutQuery.matches;
+        }
+
+        function isMobileLandscapeGameplay(state = transport.getState()) {
+            return isMobileLayout()
+                && mobileOrientationQuery.matches
+                && isInOnlineRoom()
+                && onlineSession.room?.status === 'playing';
+        }
+
+        let mobileActionsExpanded = false;
+
+        function updateMobileLayoutState(state = transport.getState()) {
+            const compactGameplay = isMobileLandscapeGameplay(state);
+            if (appRoot) {
+                appRoot.classList.toggle('mobile-landscape-gameplay', compactGameplay);
+                appRoot.classList.toggle('mobile-actions-expanded', compactGameplay && mobileActionsExpanded);
+            }
+            if (mobileActionsToggle) {
+                mobileActionsToggle.hidden = !compactGameplay;
+                mobileActionsToggle.setAttribute('aria-expanded', String(compactGameplay && mobileActionsExpanded));
+                mobileActionsToggle.textContent = compactGameplay && mobileActionsExpanded
+                    ? '\u6536\u8d77\u64cd\u4f5c'
+                    : '\u64cd\u4f5c';
+            }
+            if (!compactGameplay) {
+                mobileActionsExpanded = false;
+            }
+        }
+
+        function setOnlineProgress(message) {
+            elements.onlineStatus.textContent = message;
+        }
+
+        function getFirebaseTimeoutMessage() {
+            const host = location.hostname;
+            if (host && host !== 'localhost' && host !== '127.0.0.1') {
+                return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u786e\u8ba4 Firebase Authentication \u7684 Authorized domains \u5df2\u52a0\u5165 ' + host + '\uff0c\u7136\u540e\u5237\u65b0\u91cd\u8bd5\u3002';
+            }
+            return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u68c0\u67e5\u7f51\u7edc\uff0c\u6216\u7a0d\u540e\u91cd\u8bd5\u3002';
+        }
+
+        function withTimeout(promise, ms, message) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => {
+                    window.setTimeout(() => reject(new Error(message)), ms);
+                })
+            ]);
+        }
+
+        function showOnlineError(error, fallbackMessage = '\u8054\u673a\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002') {
+            const message = error?.message || fallbackMessage;
+            elements.onlineStatus.textContent = message;
+            if (isMobileLayout()) {
+                window.alert(message);
+            }
         }
 
         function canCurrentViewerAct(state = transport.getState()) {
@@ -2825,6 +3083,7 @@
             const canAct = canCurrentViewerAct(state);
             elements.confirmPlacement.disabled = !(canAct && hasPreviewPlacement(state));
             elements.clearPreview.disabled = !(canAct && currentPreviewAnchor);
+            updateMobileLayoutState(state);
         }
 
         function setMobilePlacementMessage(message) {
@@ -2977,6 +3236,11 @@
             cancelMobilePieceTouch();
             lastMobileBoardTap = null;
             updateMobileControls(transport.getState());
+            updateMobileLayoutState(transport.getState());
+        });
+
+        mobileOrientationQuery.addEventListener('change', () => {
+            updateMobileLayoutState(transport.getState());
         });
 
         function getSelectedBgm() {
@@ -3596,6 +3860,7 @@
             });
             const canAutoSkipRest = canAct && !displayedPlayer.autoSkip && displayedPlayer.remainingPieceIds.length <= 10;
             elements.autoSkipRest.classList.toggle('hidden', !canAutoSkipRest);
+            updateMobileLayoutState(state);
             updateMobileControls(state);
             if (currentPreviewAnchor && state.status === 'playing') {
                 requestAnimationFrame(() => showBoardPreview(currentPreviewAnchor.row, currentPreviewAnchor.col));
@@ -3634,7 +3899,7 @@
                     });
                 });
             }
-            return authReadyPromise;
+            return withTimeout(authReadyPromise, 12000, getFirebaseTimeoutMessage());
         }
 
         function makeRoomId() {
@@ -3760,7 +4025,9 @@
         }
 
         async function createOnlineRoom() {
+            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
+            setOnlineProgress('\u6b63\u5728\u521b\u5efa\u623f\u95f4...');
             const state = {
                 ...transport.getState(),
                 status: 'waiting',
@@ -3817,7 +4084,9 @@
         }
 
         async function joinOnlineRoom() {
+            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
+            setOnlineProgress('\u6b63\u5728\u52a0\u5165\u623f\u95f4...');
             const roomId = elements.joinRoomId.value.trim().toUpperCase();
             if (!roomId) {
                 elements.onlineStatus.textContent = '请输入房间号。';
@@ -3945,7 +4214,9 @@
         }
 
         async function reconnectOnlineRoom(showMissing = true) {
+            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
+            setOnlineProgress('\u6b63\u5728\u91cd\u8fde\u623f\u95f4...');
             const saved = JSON.parse(localStorage.getItem('squareGameFirebaseSession') || 'null');
             if (!saved?.roomId || !saved?.clientId) {
                 if (showMissing) elements.onlineStatus.textContent = '没有可重连的房间记录。';
@@ -4109,6 +4380,10 @@
             clearBoardPreview();
             setMobilePlacementMessage('\u5df2\u53d6\u6d88\u9884\u89c8\uff0c\u53ef\u91cd\u65b0\u62d6\u52a8\u68cb\u5b50\u6216\u70b9\u68cb\u76d8\u5b9a\u4f4d\u3002');
         });
+        mobileActionsToggle.addEventListener('click', () => {
+            mobileActionsExpanded = !mobileActionsExpanded;
+            updateMobileLayoutState(transport.getState());
+        });
         elements.autoSkipRest.addEventListener('click', () => {            confirmAction('确定设置当前玩家之后均自动跳过吗？设置后本局后续回合会自动跳过该玩家。', { type: 'AUTO_SKIP_REST' });
         });
         elements.bgmSelect.addEventListener('change', () => {
@@ -4128,13 +4403,15 @@
             updateBgmControls(`${getSelectedBgm().label} · 音频加载失败`, true);
         });
         elements.createRoom.addEventListener('click', () => {
+            setOnlineProgress('\u6b63\u5728\u521b\u5efa\u623f\u95f4...');
             createOnlineRoom().catch((error) => {
-                elements.onlineStatus.textContent = error.message;
+                showOnlineError(error, '\u521b\u5efa\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002');
             });
         });
         elements.joinRoom.addEventListener('click', () => {
+            setOnlineProgress('\u6b63\u5728\u52a0\u5165\u623f\u95f4...');
             joinOnlineRoom().catch((error) => {
-                elements.onlineStatus.textContent = error.message;
+                showOnlineError(error, '\u52a0\u5165\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002');
             });
         });
         elements.startRoom.addEventListener('click', () => {
@@ -4148,8 +4425,9 @@
             });
         });
         elements.reconnectRoom.addEventListener('click', () => {
+            setOnlineProgress('\u6b63\u5728\u91cd\u8fde\u623f\u95f4...');
             reconnectOnlineRoom(true).catch((error) => {
-                elements.onlineStatus.textContent = error.message;
+                showOnlineError(error, '\u91cd\u8fde\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002');
             });
         });
         elements.copyRoomCode.addEventListener('click', async () => {
