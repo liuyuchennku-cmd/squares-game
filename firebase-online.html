@@ -2445,7 +2445,12 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
         import {
+            browserLocalPersistence,
+            browserSessionPersistence,
             getAuth,
+            indexedDBLocalPersistence,
+            inMemoryPersistence,
+            initializeAuth,
             onAuthStateChanged,
             signInAnonymously
         } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
@@ -3068,11 +3073,7 @@
         }
 
         function getFirebaseTimeoutMessage() {
-            const host = location.hostname;
-            if (host && host !== 'localhost' && host !== '127.0.0.1') {
-                return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u786e\u8ba4 Firebase Authentication \u7684 Authorized domains \u5df2\u52a0\u5165 ' + host + '\uff0c\u7136\u540e\u5237\u65b0\u91cd\u8bd5\u3002';
-            }
-            return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u68c0\u67e5\u7f51\u7edc\uff0c\u6216\u7a0d\u540e\u91cd\u8bd5\u3002';
+            return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u68c0\u67e5\u5f53\u524d\u7f51\u7edc\uff0c\u6216\u66f4\u6362\u7cfb\u7edf\u6d4f\u89c8\u5668\u540e\u91cd\u8bd5\u3002\u82e5\u684c\u9762\u7aef\u6b63\u5e38\u800c\u624b\u673a\u7aef\u8d85\u65f6\uff0c\u901a\u5e38\u662f\u79fb\u52a8\u6d4f\u89c8\u5668\u5361\u5728 Firebase Auth \u521d\u59cb\u5316\u9636\u6bb5\u3002';
         }
 
         function withTimeout(promise, ms, message) {
@@ -3939,6 +3940,35 @@
                 && !String(firebaseConfig.projectId).includes('替换');
         }
 
+        function isProbablyMobileBrowser() {
+            if (navigator.userAgentData?.mobile) return true;
+            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        }
+
+        function getAuthPersistenceHierarchy() {
+            // 一些移动浏览器在默认持久化初始化时可能卡在 IndexedDB 相关流程，
+            // 这里优先使用更稳的 session / memory 持久化来保证首次匿名登录速度。
+            if (isMobileLayout() || isProbablyMobileBrowser()) {
+                return [browserSessionPersistence, inMemoryPersistence];
+            }
+            return [
+                indexedDBLocalPersistence,
+                browserLocalPersistence,
+                browserSessionPersistence,
+                inMemoryPersistence
+            ];
+        }
+
+        function createAuthInstance(app) {
+            const persistence = getAuthPersistenceHierarchy();
+            try {
+                return initializeAuth(app, { persistence });
+            } catch (error) {
+                return getAuth(app);
+            }
+        }
+
+
         function ensureFirebaseReady() {
             if (!hasFirebaseConfig()) {
                 return Promise.reject(new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。'));
@@ -3947,27 +3977,53 @@
             if (!firebaseApp) {
                 firebaseApp = initializeApp(firebaseConfig);
                 db = getFirestore(firebaseApp);
-                auth = getAuth(firebaseApp);
+                auth = createAuthInstance(firebaseApp);
             }
             if (!authReadyPromise) {
                 authReadyPromise = new Promise((resolve, reject) => {
-                    const unsubscribe = onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            currentUser = user;
-                            unsubscribe();
-                            resolve(user);
-                        }
-                    }, reject);
-                    signInAnonymously(auth).catch((error) => {
+                    if (auth.currentUser) {
+                        currentUser = auth.currentUser;
+                        resolve(auth.currentUser);
+                        return;
+                    }
+
+                    let settled = false;
+                    let unsubscribe = () => {};
+                    const finish = (handler, value) => {
+                        if (settled) return;
+                        settled = true;
                         unsubscribe();
-                        reject(error);
+                        handler(value);
+                    };
+
+                    unsubscribe = onAuthStateChanged(auth, (user) => {
+                        if (!user) return;
+                        currentUser = user;
+                        finish(resolve, user);
+                    }, (error) => {
+                        finish(reject, error);
+                    });
+
+                    signInAnonymously(auth).then((credential) => {
+                        currentUser = credential.user;
+                        finish(resolve, credential.user);
+                    }).catch((error) => {
+                        if (auth.currentUser) {
+                            currentUser = auth.currentUser;
+                            finish(resolve, auth.currentUser);
+                            return;
+                        }
+                        finish(reject, error);
                     });
                 }).catch((error) => {
                     authReadyPromise = null;
                     throw error;
                 });
             }
-            return withTimeout(authReadyPromise, 12000, getFirebaseTimeoutMessage());
+            return withTimeout(authReadyPromise, 12000, getFirebaseTimeoutMessage()).catch((error) => {
+                authReadyPromise = null;
+                throw error;
+            });
         }
         function makeRoomId() {
             const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
