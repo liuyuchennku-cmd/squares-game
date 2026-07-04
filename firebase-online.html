@@ -3071,6 +3071,7 @@
         const DEBUG_MOBILE_ROOM_FLOW_SESSION = 'mobile-room-flow';
         const DEBUG_MOBILE_ROOM_FLOW_PANEL = new URLSearchParams(window.location.search).has('debug');
         let debugMobileRoomFlowPanel = null;
+        let debugMobileRoomFlowLines = ['[DBG] mobile-room-flow'];
         let authProbeStarted = false;
         function isLikelyMobileBrowser() {
             if (navigator.userAgentData?.mobile) return true;
@@ -3086,8 +3087,8 @@
             debugMobileRoomFlowPanel.style.right = '8px';
             debugMobileRoomFlowPanel.style.bottom = '8px';
             debugMobileRoomFlowPanel.style.zIndex = '9999';
-            debugMobileRoomFlowPanel.style.maxHeight = '40vh';
-            debugMobileRoomFlowPanel.style.overflow = 'auto';
+            debugMobileRoomFlowPanel.style.maxHeight = '55vh';
+            debugMobileRoomFlowPanel.style.overflowY = 'auto';
             debugMobileRoomFlowPanel.style.margin = '0';
             debugMobileRoomFlowPanel.style.padding = '8px 10px';
             debugMobileRoomFlowPanel.style.borderRadius = '10px';
@@ -3095,8 +3096,10 @@
             debugMobileRoomFlowPanel.style.color = '#9fe7ff';
             debugMobileRoomFlowPanel.style.font = '12px/1.4 monospace';
             debugMobileRoomFlowPanel.style.whiteSpace = 'pre-wrap';
-            debugMobileRoomFlowPanel.style.pointerEvents = 'none';
-            debugMobileRoomFlowPanel.textContent = '[DBG] mobile-room-flow\n';
+            debugMobileRoomFlowPanel.style.pointerEvents = 'auto';
+            debugMobileRoomFlowPanel.style.touchAction = 'pan-y';
+            debugMobileRoomFlowPanel.style.webkitOverflowScrolling = 'touch';
+            debugMobileRoomFlowPanel.textContent = `${debugMobileRoomFlowLines.join('\n')}\n`;
             document.body.appendChild(debugMobileRoomFlowPanel);
             return debugMobileRoomFlowPanel;
         }
@@ -3104,11 +3107,11 @@
             if (DEBUG_MOBILE_ROOM_FLOW_PANEL) {
                 const panel = ensureDebugMobileRoomFlowPanel();
                 const payload = Object.entries(data).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' ');
-                panel.textContent += `[${hypothesisId}] ${at} ${msg}${payload ? ` | ${payload}` : ''}\n`;
-                const lines = panel.textContent.split('\n');
-                if (lines.length > 16) {
-                    panel.textContent = lines.slice(lines.length - 16).join('\n');
+                debugMobileRoomFlowLines.push(`[${hypothesisId}] ${at} ${msg}${payload ? ` | ${payload}` : ''}`);
+                if (debugMobileRoomFlowLines.length > 120) {
+                    debugMobileRoomFlowLines = [debugMobileRoomFlowLines[0], ...debugMobileRoomFlowLines.slice(-119)];
                 }
+                panel.textContent = `${debugMobileRoomFlowLines.join('\n')}\n`;
                 panel.scrollTop = panel.scrollHeight;
             }
             fetch(DEBUG_MOBILE_ROOM_FLOW_URL, {
