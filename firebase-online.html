@@ -3068,6 +3068,10 @@
         const DEBUG_MOBILE_ROOM_FLOW_SESSION = 'mobile-room-flow';
         const DEBUG_MOBILE_ROOM_FLOW_PANEL = new URLSearchParams(window.location.search).has('debug');
         let debugMobileRoomFlowPanel = null;
+        function isLikelyMobileBrowser() {
+            if (navigator.userAgentData?.mobile) return true;
+            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        }
         function ensureDebugMobileRoomFlowPanel() {
             if (!DEBUG_MOBILE_ROOM_FLOW_PANEL) return null;
             if (debugMobileRoomFlowPanel) return debugMobileRoomFlowPanel;
@@ -4826,9 +4830,15 @@
         if (!hasFirebaseConfig()) {
             elements.onlineStatus.textContent = '请先复制 firebase/firebase-config.example.js 为 firebase/firebase-config.js，并填入 Firebase Web App 配置。';
         }
-        reconnectOnlineRoom(false).catch(() => {
-            localStorage.removeItem('squareGameFirebaseSession');
-        });
+        if (isLikelyMobileBrowser()) {
+            // #region debug-point A:skip-auto-reconnect-mobile
+            reportMobileRoomFlow('A', 'startup:autoReconnect', 'Skip automatic reconnect on mobile to avoid stale auth promise');
+            // #endregion
+        } else {
+            reconnectOnlineRoom(false).catch(() => {
+                localStorage.removeItem('squareGameFirebaseSession');
+            });
+        }
 
         window.addEventListener('beforeunload', () => {
             if (!db || !onlineSession.roomId || !onlineSession.clientId) return;
