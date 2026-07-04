@@ -3063,6 +3063,45 @@
             }
         }
 
+        // #region debug-point Z:mobile-room-flow-helper
+        const DEBUG_MOBILE_ROOM_FLOW_URL = 'http://192.168.1.124:7777/event';
+        const DEBUG_MOBILE_ROOM_FLOW_SESSION = 'mobile-room-flow';
+        function reportMobileRoomFlow(hypothesisId, at, msg, data = {}) {
+            fetch(DEBUG_MOBILE_ROOM_FLOW_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: DEBUG_MOBILE_ROOM_FLOW_SESSION,
+                    runId: 'pre-fix',
+                    hypothesisId,
+                    location: at,
+                    msg: `[DEBUG] ${msg}`,
+                    data: {
+                        href: window.location.href,
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                        userAgent: navigator.userAgent,
+                        ...data
+                    },
+                    ts: Date.now()
+                })
+            }).catch(() => {});
+        }
+        window.addEventListener('error', (event) => {
+            reportMobileRoomFlow('E', 'window:error', 'Unhandled window error', {
+                message: event.message,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno
+            });
+        });
+        window.addEventListener('unhandledrejection', (event) => {
+            reportMobileRoomFlow('E', 'window:unhandledrejection', 'Unhandled promise rejection', {
+                reason: String(event.reason?.message || event.reason || '')
+            });
+        });
+        // #endregion
+
         function canCurrentViewerAct(state = transport.getState()) {
             const displayedPlayer = getDisplayedPiecePlayer(state);
             return canDisplayedPlayerAct(state, displayedPlayer);
@@ -3880,22 +3919,53 @@
             if (!hasFirebaseConfig()) {
                 return Promise.reject(new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。'));
             }
+            // #region debug-point A:ensure-start
+            reportMobileRoomFlow('A', 'ensureFirebaseReady:start', 'Enter ensureFirebaseReady', {
+                hasCurrentUser: Boolean(currentUser),
+                hasDb: Boolean(db),
+                hasApp: Boolean(firebaseApp),
+                hasAuthReadyPromise: Boolean(authReadyPromise)
+            });
+            // #endregion
             if (currentUser && db) return Promise.resolve(currentUser);
             if (!authReadyPromise) {
                 if (!firebaseApp) {
                     firebaseApp = initializeApp(firebaseConfig);
                     db = getFirestore(firebaseApp);
                     auth = getAuth(firebaseApp);
+                    // #region debug-point A:app-init
+                    reportMobileRoomFlow('A', 'ensureFirebaseReady:init', 'Initialized Firebase app/auth/db');
+                    // #endregion
                 }
                 authReadyPromise = new Promise((resolve, reject) => {
                     const unsubscribe = onAuthStateChanged(auth, (user) => {
                         if (user) {
                             currentUser = user;
+                            // #region debug-point A:auth-success
+                            reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged', 'Received authenticated user', {
+                                uid: user.uid,
+                                isAnonymous: user.isAnonymous
+                            });
+                            // #endregion
                             unsubscribe();
                             resolve(user);
                         }
-                    }, reject);
+                    }, (error) => {
+                        // #region debug-point A:auth-listener-error
+                        reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged:error', 'Auth state listener failed', {
+                            code: error?.code || '',
+                            message: error?.message || ''
+                        });
+                        // #endregion
+                        reject(error);
+                    });
                     signInAnonymously(auth).catch((error) => {
+                        // #region debug-point A:sign-in-error
+                        reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:error', 'Anonymous sign-in failed', {
+                            code: error?.code || '',
+                            message: error?.message || ''
+                        });
+                        // #endregion
                         unsubscribe();
                         reject(error);
                     });
@@ -3970,9 +4040,23 @@
         }
 
         async function loadRoomSession(roomId, uid) {
+            // #region debug-point C:load-session-start
+            reportMobileRoomFlow('C', 'loadRoomSession:start', 'Start loading room session', {
+                roomId,
+                uid
+            });
+            // #endregion
             const roomRef = doc(db, 'rooms', roomId);
             const roomSnap = await getDoc(roomRef);
-            if (!roomSnap.exists()) throw new Error('房间不存在或已过期');
+            if (!roomSnap.exists()) {
+                // #region debug-point C:room-missing
+                reportMobileRoomFlow('C', 'loadRoomSession:room-missing', 'Room snapshot missing', {
+                    roomId,
+                    uid
+                });
+                // #endregion
+                throw new Error('房间不存在或已过期');
+            }
 
             const playersSnap = await getDocs(collection(db, 'rooms', roomId, 'players'));
             const players = playersSnap.docs.map((item) => ({
@@ -3980,7 +4064,24 @@
                 uid: item.data().uid || item.id
             }));
             const client = players.find((player) => player.uid === uid);
-            if (!client) throw new Error('未找到该玩家，请重新加入房间');
+            if (!client) {
+                // #region debug-point C:client-missing
+                reportMobileRoomFlow('C', 'loadRoomSession:client-missing', 'Player missing from room players', {
+                    roomId,
+                    uid,
+                    playerCount: players.length
+                });
+                // #endregion
+                throw new Error('未找到该玩家，请重新加入房间');
+            }
+            // #region debug-point C:load-session-success
+            reportMobileRoomFlow('C', 'loadRoomSession:success', 'Loaded room session successfully', {
+                roomId,
+                uid,
+                playerCount: players.length,
+                status: roomSnap.data().status || 'unknown'
+            });
+            // #endregion
 
             return {
                 room: publicRoomFromData(roomId, roomSnap.data(), players),
@@ -4026,7 +4127,19 @@
         }
 
         async function createOnlineRoom() {
+            // #region debug-point D:create-path-start
+            reportMobileRoomFlow('D', 'createOnlineRoom:start', 'Entered createOnlineRoom', {
+                playerName: elements.playerName.value.trim(),
+                isMobileLayout: isMobileLayout()
+            });
+            // #endregion
             const user = await ensureFirebaseReady();
+            // #region debug-point B:create-user-ready
+            reportMobileRoomFlow('B', 'createOnlineRoom:user-ready', 'User ready for room creation', {
+                uid: user.uid,
+                isAnonymous: user.isAnonymous
+            });
+            // #endregion
             const state = {
                 ...transport.getState(),
                 status: 'waiting',
@@ -4041,6 +4154,12 @@
                 const colorSeatRef = doc(db, 'rooms', roomId, 'colorSeats', 'blue');
 
                 try {
+                    // #region debug-point B:create-tx-start
+                    reportMobileRoomFlow('B', 'createOnlineRoom:transaction:start', 'Start create room transaction', {
+                        roomId,
+                        attempt
+                    });
+                    // #endregion
                     await runTransaction(db, async (transaction) => {
                         const existingRoom = await transaction.get(roomRef);
                         if (existingRoom.exists()) throw new Error('ROOM_ID_COLLISION');
@@ -4072,9 +4191,22 @@
                         });
                     });
 
+                    // #region debug-point B:create-tx-success
+                    reportMobileRoomFlow('B', 'createOnlineRoom:transaction:success', 'Create room transaction committed', {
+                        roomId
+                    });
+                    // #endregion
                     setOnlineSession(await loadRoomSession(roomId, user.uid));
                     return;
                 } catch (error) {
+                    // #region debug-point B:create-error
+                    reportMobileRoomFlow('B', 'createOnlineRoom:error', 'Create room failed', {
+                        roomId,
+                        attempt,
+                        code: error?.code || '',
+                        message: error?.message || ''
+                    });
+                    // #endregion
                     if (error.message !== 'ROOM_ID_COLLISION') throw error;
                 }
             }
@@ -4083,58 +4215,93 @@
         }
 
         async function joinOnlineRoom() {
+            // #region debug-point D:join-path-start
+            reportMobileRoomFlow('D', 'joinOnlineRoom:start', 'Entered joinOnlineRoom', {
+                roomId: elements.joinRoomId.value.trim().toUpperCase(),
+                playerName: elements.playerName.value.trim(),
+                isMobileLayout: isMobileLayout()
+            });
+            // #endregion
             const roomId = elements.joinRoomId.value.trim().toUpperCase();
             if (!roomId) {
                 elements.onlineStatus.textContent = '请输入房间号。';
                 return;
             }
             const user = await ensureFirebaseReady();
+            // #region debug-point B:join-user-ready
+            reportMobileRoomFlow('B', 'joinOnlineRoom:user-ready', 'User ready for room join', {
+                uid: user.uid,
+                roomId
+            });
+            // #endregion
             const name = elements.playerName.value.trim() || '玩家';
 
-            await runTransaction(db, async (transaction) => {
-                const roomRef = doc(db, 'rooms', roomId);
-                const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
-                const roomSnap = await transaction.get(roomRef);
-                if (!roomSnap.exists()) throw new Error('房间不存在或已过期');
+            try {
+                // #region debug-point B:join-tx-start
+                reportMobileRoomFlow('B', 'joinOnlineRoom:transaction:start', 'Start join room transaction', {
+                    roomId
+                });
+                // #endregion
+                await runTransaction(db, async (transaction) => {
+                    const roomRef = doc(db, 'rooms', roomId);
+                    const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
+                    const roomSnap = await transaction.get(roomRef);
+                    if (!roomSnap.exists()) throw new Error('房间不存在或已过期');
 
-                const playerSnap = await transaction.get(playerRef);
-                if (playerSnap.exists()) {
-                    transaction.update(playerRef, {
+                    const playerSnap = await transaction.get(playerRef);
+                    if (playerSnap.exists()) {
+                        transaction.update(playerRef, {
+                            name,
+                            connected: true,
+                            lastSeen: serverTimestamp()
+                        });
+                        transaction.update(roomRef, { updatedAt: serverTimestamp() });
+                        return;
+                    }
+
+                    const room = roomSnap.data();
+                    if (room.status !== 'waiting') throw new Error('对局已经开始，暂时不能加入新玩家。');
+                    const colors = getColorsForMode(room.mode);
+                    const seatRefs = colors.map((color) => doc(db, 'rooms', roomId, 'colorSeats', color));
+                    const seatSnaps = [];
+                    for (const seatRef of seatRefs) {
+                        seatSnaps.push(await transaction.get(seatRef));
+                    }
+                    const usedColors = new Set(seatSnaps.filter((snap) => snap.exists()).map((snap) => snap.data().color));
+                    const color = colors.find((item) => !usedColors.has(item));
+                    if (!color) throw new Error('房间已满，第一版暂不开放观战位。');
+
+                    transaction.set(doc(db, 'rooms', roomId, 'colorSeats', color), {
+                        color,
+                        uid: user.uid,
+                        occupiedAt: serverTimestamp()
+                    });
+                    transaction.set(playerRef, {
+                        uid: user.uid,
                         name,
+                        color,
+                        host: false,
                         connected: true,
+                        joinedAt: serverTimestamp(),
                         lastSeen: serverTimestamp()
                     });
-                    transaction.update(roomRef, { updatedAt: serverTimestamp() });
-                    return;
-                }
-
-                const room = roomSnap.data();
-                if (room.status !== 'waiting') throw new Error('对局已经开始，暂时不能加入新玩家。');
-                const colors = getColorsForMode(room.mode);
-                const seatRefs = colors.map((color) => doc(db, 'rooms', roomId, 'colorSeats', color));
-                const seatSnaps = [];
-                for (const seatRef of seatRefs) {
-                    seatSnaps.push(await transaction.get(seatRef));
-                }
-                const usedColors = new Set(seatSnaps.filter((snap) => snap.exists()).map((snap) => snap.data().color));
-                const color = colors.find((item) => !usedColors.has(item));
-                if (!color) throw new Error('房间已满，第一版暂不开放观战位。');
-
-                transaction.set(doc(db, 'rooms', roomId, 'colorSeats', color), {
-                    color,
-                    uid: user.uid,
-                    occupiedAt: serverTimestamp()
                 });
-                transaction.set(playerRef, {
-                    uid: user.uid,
-                    name,
-                    color,
-                    host: false,
-                    connected: true,
-                    joinedAt: serverTimestamp(),
-                    lastSeen: serverTimestamp()
+                // #region debug-point B:join-tx-success
+                reportMobileRoomFlow('B', 'joinOnlineRoom:transaction:success', 'Join room transaction committed', {
+                    roomId,
+                    uid: user.uid
                 });
-            });
+                // #endregion
+            } catch (error) {
+                // #region debug-point B:join-error
+                reportMobileRoomFlow('B', 'joinOnlineRoom:error', 'Join room failed', {
+                    roomId,
+                    code: error?.code || '',
+                    message: error?.message || ''
+                });
+                // #endregion
+                throw error;
+            }
 
             setOnlineSession(await loadRoomSession(roomId, user.uid));
         }
@@ -4400,12 +4567,36 @@
             updateBgmControls(`${getSelectedBgm().label} · 音频加载失败`, true);
         });
         elements.createRoom.addEventListener('click', () => {
+            // #region debug-point D:create-click
+            reportMobileRoomFlow('D', 'createRoom:click', 'Create room button clicked', {
+                text: elements.createRoom.textContent,
+                disabled: elements.createRoom.disabled
+            });
+            // #endregion
             createOnlineRoom().catch((error) => {
+                // #region debug-point E:create-handler-error
+                reportMobileRoomFlow('E', 'createRoom:click:catch', 'Create room click handler caught error', {
+                    code: error?.code || '',
+                    message: error?.message || ''
+                });
+                // #endregion
                 elements.onlineStatus.textContent = error.message;
             });
         });
         elements.joinRoom.addEventListener('click', () => {
+            // #region debug-point D:join-click
+            reportMobileRoomFlow('D', 'joinRoom:click', 'Join room button clicked', {
+                text: elements.joinRoom.textContent,
+                disabled: elements.joinRoom.disabled
+            });
+            // #endregion
             joinOnlineRoom().catch((error) => {
+                // #region debug-point E:join-handler-error
+                reportMobileRoomFlow('E', 'joinRoom:click:catch', 'Join room click handler caught error', {
+                    code: error?.code || '',
+                    message: error?.message || ''
+                });
+                // #endregion
                 elements.onlineStatus.textContent = error.message;
             });
         });
