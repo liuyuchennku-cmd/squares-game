@@ -3066,7 +3066,43 @@
         // #region debug-point Z:mobile-room-flow-helper
         const DEBUG_MOBILE_ROOM_FLOW_URL = 'http://192.168.1.124:7777/event';
         const DEBUG_MOBILE_ROOM_FLOW_SESSION = 'mobile-room-flow';
+        const DEBUG_MOBILE_ROOM_FLOW_PANEL = new URLSearchParams(window.location.search).has('debug');
+        let debugMobileRoomFlowPanel = null;
+        function ensureDebugMobileRoomFlowPanel() {
+            if (!DEBUG_MOBILE_ROOM_FLOW_PANEL) return null;
+            if (debugMobileRoomFlowPanel) return debugMobileRoomFlowPanel;
+            debugMobileRoomFlowPanel = document.createElement('pre');
+            debugMobileRoomFlowPanel.id = 'mobileRoomFlowDebugPanel';
+            debugMobileRoomFlowPanel.style.position = 'fixed';
+            debugMobileRoomFlowPanel.style.left = '8px';
+            debugMobileRoomFlowPanel.style.right = '8px';
+            debugMobileRoomFlowPanel.style.bottom = '8px';
+            debugMobileRoomFlowPanel.style.zIndex = '9999';
+            debugMobileRoomFlowPanel.style.maxHeight = '40vh';
+            debugMobileRoomFlowPanel.style.overflow = 'auto';
+            debugMobileRoomFlowPanel.style.margin = '0';
+            debugMobileRoomFlowPanel.style.padding = '8px 10px';
+            debugMobileRoomFlowPanel.style.borderRadius = '10px';
+            debugMobileRoomFlowPanel.style.background = 'rgba(5, 10, 24, 0.92)';
+            debugMobileRoomFlowPanel.style.color = '#9fe7ff';
+            debugMobileRoomFlowPanel.style.font = '12px/1.4 monospace';
+            debugMobileRoomFlowPanel.style.whiteSpace = 'pre-wrap';
+            debugMobileRoomFlowPanel.style.pointerEvents = 'none';
+            debugMobileRoomFlowPanel.textContent = '[DBG] mobile-room-flow\n';
+            document.body.appendChild(debugMobileRoomFlowPanel);
+            return debugMobileRoomFlowPanel;
+        }
         function reportMobileRoomFlow(hypothesisId, at, msg, data = {}) {
+            if (DEBUG_MOBILE_ROOM_FLOW_PANEL) {
+                const panel = ensureDebugMobileRoomFlowPanel();
+                const payload = Object.entries(data).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' ');
+                panel.textContent += `[${hypothesisId}] ${at} ${msg}${payload ? ` | ${payload}` : ''}\n`;
+                const lines = panel.textContent.split('\n');
+                if (lines.length > 16) {
+                    panel.textContent = lines.slice(lines.length - 16).join('\n');
+                }
+                panel.scrollTop = panel.scrollHeight;
+            }
             fetch(DEBUG_MOBILE_ROOM_FLOW_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
