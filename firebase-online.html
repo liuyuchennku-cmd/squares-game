@@ -2446,6 +2446,8 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
         import {
             getAuth,
+            inMemoryPersistence,
+            initializeAuth,
             onAuthStateChanged,
             signInAnonymously
         } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
@@ -3141,11 +3143,29 @@
                 reason: String(event.reason?.message || event.reason || '')
             });
         });
+
+        function createFirebaseAuth(app) {
+            if (isLikelyMobileBrowser()) {
+                try {
+                    // #region debug-point A:auth-mode-mobile
+                    reportMobileRoomFlow('A', 'createFirebaseAuth', 'Use initializeAuth with in-memory persistence on mobile');
+                    // #endregion
+                    return initializeAuth(app, { persistence: inMemoryPersistence });
+                } catch (error) {
+                    // #region debug-point A:auth-mode-mobile-fallback
+                    reportMobileRoomFlow('A', 'createFirebaseAuth:fallback', 'Fallback to getAuth after initializeAuth failure', {
+                        message: error?.message || ''
+                    });
+                    // #endregion
+                    return getAuth(app);
+                }
+            }
+            return getAuth(app);
+        }
         // #endregion
 
         function canCurrentViewerAct(state = transport.getState()) {
             const displayedPlayer = getDisplayedPiecePlayer(state);
-            return canDisplayedPlayerAct(state, displayedPlayer);
         }
 
         function hasPreviewPlacement(state = transport.getState()) {
@@ -3973,7 +3993,7 @@
             if (!firebaseApp) {
                 firebaseApp = initializeApp(firebaseConfig);
                 db = getFirestore(firebaseApp);
-                auth = getAuth(firebaseApp);
+                auth = createFirebaseAuth(firebaseApp);
                 // #region debug-point A:app-init
                 reportMobileRoomFlow('A', 'ensureFirebaseReady:init', 'Initialized Firebase app/auth/db');
                 // #endregion
@@ -4028,6 +4048,9 @@
                         // #endregion
                         finish(reject, new Error('AUTH_READY_TIMEOUT'));
                     }, 5000);
+                    // #region debug-point A:sign-in-start
+                    reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:start', 'Call signInAnonymously');
+                    // #endregion
                     signInAnonymously(auth).then((credential) => {
                         currentUser = credential.user;
                         // #region debug-point A:sign-in-success
