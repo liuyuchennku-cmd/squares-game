@@ -2445,12 +2445,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
         import {
-            browserLocalPersistence,
-            browserSessionPersistence,
             getAuth,
-            indexedDBLocalPersistence,
-            inMemoryPersistence,
-            initializeAuth,
             onAuthStateChanged,
             signInAnonymously
         } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
@@ -3065,65 +3060,6 @@
             }
             if (!compactGameplay) {
                 mobileActionsExpanded = false;
-            }
-        }
-
-        function setOnlineProgress(message) {
-            elements.onlineStatus.textContent = message;
-        }
-
-        function getFirebaseTimeoutMessage() {
-            return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u68c0\u67e5\u5f53\u524d\u7f51\u7edc\uff0c\u6216\u66f4\u6362\u7cfb\u7edf\u6d4f\u89c8\u5668\u540e\u91cd\u8bd5\u3002\u82e5\u684c\u9762\u7aef\u6b63\u5e38\u800c\u624b\u673a\u7aef\u8d85\u65f6\uff0c\u901a\u5e38\u662f\u79fb\u52a8\u6d4f\u89c8\u5668\u5361\u5728 Firebase Auth \u521d\u59cb\u5316\u9636\u6bb5\u3002';
-        }
-
-        function withTimeout(promise, ms, message) {
-            let timeoutId = 0;
-            return Promise.race([
-                promise,
-                new Promise((_, reject) => {
-                    timeoutId = window.setTimeout(() => reject(new Error(message)), ms);
-                })
-            ]).finally(() => window.clearTimeout(timeoutId));
-        }
-
-        function getFriendlyOnlineError(error, fallbackMessage) {
-            const code = error?.code || '';
-            if (code.includes('permission-denied')) {
-                return 'Firebase 拒绝了房间操作。请检查 Firestore 安全规则是否已部署。';
-            }
-            if (code.includes('unavailable') || code.includes('network-request-failed')) {
-                return '暂时无法连接 Firebase。请检查手机网络后重试。';
-            }
-            if (code.includes('unauthorized-domain')) {
-                return `当前域名 ${location.hostname || '本地文件'} 未加入 Firebase Authorized domains。`;
-            }
-            return error?.message || fallbackMessage;
-        }
-
-        function showOnlineError(error, fallbackMessage = '\u8054\u673a\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002') {
-            const message = getFriendlyOnlineError(error, fallbackMessage);
-            elements.onlineStatus.textContent = message;
-            if (isMobileLayout()) {
-                window.alert(message);
-            }
-        }
-
-        async function runOnlineButtonAction(button, busyLabel, action, fallbackMessage) {
-            if (button.dataset.busy === 'true') return;
-            const idleLabel = button.textContent;
-            button.dataset.busy = 'true';
-            button.disabled = true;
-            button.textContent = busyLabel;
-            button.setAttribute('aria-busy', 'true');
-            try {
-                await action();
-            } catch (error) {
-                showOnlineError(error, fallbackMessage);
-            } finally {
-                button.dataset.busy = 'false';
-                button.disabled = false;
-                button.textContent = idleLabel;
-                button.removeAttribute('aria-busy');
             }
         }
 
@@ -3940,84 +3876,29 @@
                 && !String(firebaseConfig.projectId).includes('替换');
         }
 
-        function isProbablyMobileBrowser() {
-            if (navigator.userAgentData?.mobile) return true;
-            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-        }
-
-        function getAuthPersistenceHierarchy() {
-            // 一些移动浏览器在默认持久化初始化时可能卡在 IndexedDB 相关流程，
-            // 这里优先使用更稳的 session / memory 持久化来保证首次匿名登录速度。
-            if (isMobileLayout() || isProbablyMobileBrowser()) {
-                return [browserSessionPersistence, inMemoryPersistence];
-            }
-            return [
-                indexedDBLocalPersistence,
-                browserLocalPersistence,
-                browserSessionPersistence,
-                inMemoryPersistence
-            ];
-        }
-
-        function createAuthInstance(app) {
-            const persistence = getAuthPersistenceHierarchy();
-            try {
-                return initializeAuth(app, { persistence });
-            } catch (error) {
-                return getAuth(app);
-            }
-        }
-
-
         function ensureFirebaseReady() {
             if (!hasFirebaseConfig()) {
                 return Promise.reject(new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。'));
             }
             if (currentUser && db) return Promise.resolve(currentUser);
-            if (!firebaseApp) {
-                firebaseApp = initializeApp(firebaseConfig);
-                db = getFirestore(firebaseApp);
-                auth = createAuthInstance(firebaseApp);
-            }
             if (!authReadyPromise) {
+                if (!firebaseApp) {
+                    firebaseApp = initializeApp(firebaseConfig);
+                    db = getFirestore(firebaseApp);
+                    auth = getAuth(firebaseApp);
+                }
                 authReadyPromise = new Promise((resolve, reject) => {
-                    if (auth.currentUser) {
-                        currentUser = auth.currentUser;
-                        resolve(auth.currentUser);
-                        return;
-                    }
-
-                    let settled = false;
-                    let unsubscribe = () => {};
-                    const finish = (handler, value) => {
-                        if (settled) return;
-                        settled = true;
-                        unsubscribe();
-                        handler(value);
-                    };
-
-                    unsubscribe = onAuthStateChanged(auth, (user) => {
-                        if (!user) return;
-                        currentUser = user;
-                        finish(resolve, user);
-                    }, (error) => {
-                        finish(reject, error);
-                    });
-
-                    signInAnonymously(auth).then((credential) => {
-                        currentUser = credential.user;
-                        finish(resolve, credential.user);
-                    }).catch((error) => {
-                        if (auth.currentUser) {
-                            currentUser = auth.currentUser;
-                            finish(resolve, auth.currentUser);
-                            return;
+                    const unsubscribe = onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            currentUser = user;
+                            unsubscribe();
+                            resolve(user);
                         }
-                        finish(reject, error);
+                    }, reject);
+                    signInAnonymously(auth).catch((error) => {
+                        unsubscribe();
+                        reject(error);
                     });
-                }).catch((error) => {
-                    authReadyPromise = null;
-                    throw error;
                 });
             }
             return authReadyPromise;
@@ -4145,9 +4026,7 @@
         }
 
         async function createOnlineRoom() {
-            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
-            setOnlineProgress('\u6b63\u5728\u521b\u5efa\u623f\u95f4...');
             const state = {
                 ...transport.getState(),
                 status: 'waiting',
@@ -4193,9 +4072,7 @@
                         });
                     });
 
-                    setOnlineProgress('房间已创建，正在读取房间数据...');
-                    const session = await loadRoomSession(roomId, user.uid);
-                    setOnlineSession(session);
+                    setOnlineSession(await loadRoomSession(roomId, user.uid));
                     return;
                 } catch (error) {
                     if (error.message !== 'ROOM_ID_COLLISION') throw error;
@@ -4208,11 +4085,10 @@
         async function joinOnlineRoom() {
             const roomId = elements.joinRoomId.value.trim().toUpperCase();
             if (!roomId) {
-                throw new Error('请输入房间号。');
+                elements.onlineStatus.textContent = '请输入房间号。';
+                return;
             }
-            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
-            setOnlineProgress('\u6b63\u5728\u52a0\u5165\u623f\u95f4...');
             const name = elements.playerName.value.trim() || '玩家';
 
             await runTransaction(db, async (transaction) => {
@@ -4260,9 +4136,7 @@
                 });
             });
 
-            setOnlineProgress('已加入房间，正在同步房间数据...');
-            const session = await loadRoomSession(roomId, user.uid);
-            setOnlineSession(session);
+            setOnlineSession(await loadRoomSession(roomId, user.uid));
         }
 
         async function startOnlineRoom() {
@@ -4337,9 +4211,7 @@
         }
 
         async function reconnectOnlineRoom(showMissing = true) {
-            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
-            setOnlineProgress('\u6b63\u5728\u91cd\u8fde\u623f\u95f4...');
             const saved = JSON.parse(localStorage.getItem('squareGameFirebaseSession') || 'null');
             if (!saved?.roomId || !saved?.clientId) {
                 if (showMissing) elements.onlineStatus.textContent = '没有可重连的房间记录。';
@@ -4528,20 +4400,14 @@
             updateBgmControls(`${getSelectedBgm().label} · 音频加载失败`, true);
         });
         elements.createRoom.addEventListener('click', () => {
-            runOnlineButtonAction(
-                elements.createRoom,
-                '创建中…',
-                createOnlineRoom,
-                '\u521b\u5efa\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002'
-            );
+            createOnlineRoom().catch((error) => {
+                elements.onlineStatus.textContent = error.message;
+            });
         });
         elements.joinRoom.addEventListener('click', () => {
-            runOnlineButtonAction(
-                elements.joinRoom,
-                '加入中…',
-                joinOnlineRoom,
-                '\u52a0\u5165\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002'
-            );
+            joinOnlineRoom().catch((error) => {
+                elements.onlineStatus.textContent = error.message;
+            });
         });
         elements.startRoom.addEventListener('click', () => {
             startOnlineRoom().catch((error) => {
@@ -4554,9 +4420,8 @@
             });
         });
         elements.reconnectRoom.addEventListener('click', () => {
-            setOnlineProgress('\u6b63\u5728\u91cd\u8fde\u623f\u95f4...');
             reconnectOnlineRoom(true).catch((error) => {
-                showOnlineError(error, '\u91cd\u8fde\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002');
+                elements.onlineStatus.textContent = error.message;
             });
         });
         elements.copyRoomCode.addEventListener('click', async () => {
