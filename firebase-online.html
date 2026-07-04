@@ -3071,6 +3071,7 @@
         const DEBUG_MOBILE_ROOM_FLOW_SESSION = 'mobile-room-flow';
         const DEBUG_MOBILE_ROOM_FLOW_PANEL = new URLSearchParams(window.location.search).has('debug');
         let debugMobileRoomFlowPanel = null;
+        let authProbeStarted = false;
         function isLikelyMobileBrowser() {
             if (navigator.userAgentData?.mobile) return true;
             return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
@@ -3161,6 +3162,50 @@
                 }
             }
             return getAuth(app);
+        }
+
+        async function probeIdentityToolkitReachability(reason = 'unknown') {
+            if (!DEBUG_MOBILE_ROOM_FLOW_PANEL || authProbeStarted || !firebaseConfig?.apiKey) return;
+            authProbeStarted = true;
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(new Error('AUTH_PROBE_TIMEOUT')), 5000);
+            try {
+                // #region debug-point E:identity-toolkit-probe-start
+                reportMobileRoomFlow('E', 'probeIdentityToolkit:start', 'Start direct Identity Toolkit probe', { reason });
+                // #endregion
+                const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(firebaseConfig.apiKey)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ returnSecureToken: true }),
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                const text = await response.text();
+                let payload = null;
+                try {
+                    payload = text ? JSON.parse(text) : null;
+                } catch {
+                    payload = null;
+                }
+                // #region debug-point E:identity-toolkit-probe-success
+                reportMobileRoomFlow('E', 'probeIdentityToolkit:result', 'Identity Toolkit probe completed', {
+                    reason,
+                    ok: response.ok,
+                    status: response.status,
+                    localId: payload?.localId || '',
+                    errorMessage: payload?.error?.message || ''
+                });
+                // #endregion
+            } catch (error) {
+                // #region debug-point E:identity-toolkit-probe-error
+                reportMobileRoomFlow('E', 'probeIdentityToolkit:error', 'Identity Toolkit probe failed', {
+                    reason,
+                    message: error?.message || String(error || '')
+                });
+                // #endregion
+            } finally {
+                window.clearTimeout(timeoutId);
+            }
         }
         // #endregion
 
@@ -4046,6 +4091,7 @@
                             elapsedMs: Date.now() - authReadyStartedAt
                         });
                         // #endregion
+                        probeIdentityToolkitReachability('auth-timeout').catch(() => {});
                         finish(reject, new Error('AUTH_READY_TIMEOUT'));
                     }, 5000);
                     // #region debug-point A:sign-in-start
