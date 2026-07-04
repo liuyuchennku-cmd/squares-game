@@ -1,0 +1,3002 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>方格游戏 Firebase 云联机版（0628 对照）</title>
+    <style>
+        :root {
+            --ink: #18212f;
+            --ink-soft: #526071;
+            --paper: #f3eee4;
+            --panel: rgba(255,255,255,0.86);
+            --line: rgba(24,33,47,0.16);
+            --board-line: #b9c3cc;
+            --empty: #f8fafc;
+            --blue: #1e88e5;
+            --yellow: #f5b21b;
+            --red: #e53935;
+            --green: #43a047;
+            --shadow: 0 24px 70px rgba(22,28,37,0.18);
+            --cell-size: 28px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background:
+                radial-gradient(circle at 18% 12%, rgba(245,178,27,0.24), transparent 26%),
+                radial-gradient(circle at 78% 18%, rgba(30,136,229,0.22), transparent 24%),
+                radial-gradient(circle at 88% 78%, rgba(67,160,71,0.18), transparent 26%),
+                linear-gradient(135deg, #f7f0df 0%, #edf3f8 52%, #f8e8e2 100%);
+        }
+
+        a {
+            color: inherit;
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .app {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 28px;
+        }
+
+        .topbar {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: start;
+            gap: 20px;
+            margin-bottom: 22px;
+        }
+
+        .title-block {
+            position: relative;
+        }
+
+        .eyebrow {
+            color: var(--ink-soft);
+            font-size: 13px;
+            letter-spacing: 0.18em;
+            margin: 0 0 8px;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            font-size: clamp(32px, 5vw, 64px);
+            letter-spacing: -0.06em;
+            line-height: 0.96;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: var(--ink-soft);
+            font-size: 15px;
+            line-height: 1.8;
+            margin: 14px 0 0;
+            max-width: 760px;
+        }
+
+        .nav-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .music-control {
+            align-items: center;
+            background: rgba(255,255,255,0.76);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: 0 8px 24px rgba(24,33,47,0.08);
+            display: grid;
+            gap: 2px 9px;
+            grid-template-columns: auto minmax(92px, 1fr) auto;
+            min-height: 48px;
+            padding: 6px 7px 6px 12px;
+        }
+
+        .music-note {
+            animation: music-note-pulse 1.8s ease-in-out infinite;
+            color: var(--blue);
+            font-size: 21px;
+            grid-row: 1 / 3;
+            line-height: 1;
+            transform-origin: 50% 100%;
+        }
+
+        .music-control.is-paused .music-note {
+            animation-play-state: paused;
+            color: var(--ink-soft);
+            opacity: 0.56;
+        }
+
+        .music-select {
+            appearance: none;
+            background: transparent;
+            border: 0;
+            color: var(--ink);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 800;
+            grid-column: 2;
+            min-width: 0;
+            outline: none;
+            padding: 0;
+        }
+
+        .music-status {
+            color: var(--ink-soft);
+            font-size: 10px;
+            grid-column: 2;
+            line-height: 1.2;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .music-control.needs-action .music-status {
+            color: #8a5a00;
+            font-weight: 700;
+        }
+
+        .music-toggle {
+            align-items: center;
+            align-self: stretch;
+            background: var(--ink);
+            border: 0;
+            border-radius: 13px;
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            font-size: 13px;
+            grid-column: 3;
+            grid-row: 1 / 3;
+            justify-content: center;
+            min-width: 38px;
+            transition: transform 0.16s ease, background 0.16s ease;
+        }
+
+        .music-toggle:hover {
+            background: var(--blue);
+            transform: scale(1.04);
+        }
+
+        .music-control.is-paused .music-toggle {
+            background: rgba(24,33,47,0.12);
+            color: var(--ink);
+        }
+
+        @keyframes music-note-pulse {
+            0%, 100% { transform: rotate(-7deg) translateY(0); }
+            50% { transform: rotate(7deg) translateY(-2px); }
+        }
+
+        .button,
+        .link-button {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(255,255,255,0.72);
+            box-shadow: 0 8px 24px rgba(24,33,47,0.08);
+            color: var(--ink);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 40px;
+            padding: 0 16px;
+            text-decoration: none;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        .button:hover,
+        .link-button:hover {
+            background: white;
+            box-shadow: 0 12px 30px rgba(24,33,47,0.14);
+            transform: translateY(-1px);
+        }
+
+        .button.primary {
+            background: var(--ink);
+            border-color: var(--ink);
+            color: white;
+        }
+
+        .button.danger {
+            color: #9f1d1d;
+        }
+
+        .button.warning {
+            color: #8a5a00;
+        }
+
+        .button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+            transform: none;
+        }
+
+        .mode-panel {
+            align-items: center;
+            background: rgba(255,255,255,0.72);
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding: 16px;
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-button {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: #fffaf0;
+            cursor: pointer;
+            min-width: 112px;
+            padding: 12px 14px;
+            text-align: left;
+        }
+
+        .mode-button.active {
+            background: var(--ink);
+            border-color: var(--ink);
+            color: white;
+        }
+
+        .mode-button strong {
+            display: block;
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .mode-button span {
+            font-size: 12px;
+            opacity: 0.78;
+        }
+
+        .online-panel {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.2fr);
+            gap: 14px;
+            background: rgba(24,33,47,0.88);
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 26px;
+            box-shadow: var(--shadow);
+            color: white;
+            margin-bottom: 18px;
+            padding: 16px;
+        }
+
+        .online-panel label {
+            color: rgba(255,255,255,0.72);
+            display: block;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+
+        .online-panel input {
+            width: 100%;
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 14px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font: inherit;
+            min-height: 42px;
+            outline: none;
+            padding: 0 12px;
+        }
+
+        .online-panel input::placeholder {
+            color: rgba(255,255,255,0.42);
+        }
+
+        .online-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .online-card {
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 18px;
+            background: rgba(255,255,255,0.08);
+            padding: 12px;
+        }
+
+        .online-status {
+            color: rgba(255,255,255,0.78);
+            line-height: 1.7;
+            margin: 8px 0 0;
+        }
+
+        .room-code {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 10px;
+        }
+
+        .room-code .label {
+            color: rgba(255,255,255,0.78);
+            flex: 0 0 auto;
+        }
+
+        .room-code strong {
+            background: rgba(255,255,255,0.14);
+            border-radius: 12px;
+            flex: 0 0 auto;
+            font-size: 24px;
+            letter-spacing: 0.14em;
+            padding: 6px 10px;
+        }
+
+        .room-code button {
+            flex: 0 0 auto;
+        }
+
+        .player-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .online-player {
+            align-items: center;
+            display: grid;
+            grid-template-columns: 12px 1fr auto;
+            gap: 8px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.08);
+            padding: 8px;
+        }
+
+        .online-player .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .room-state {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.12);
+            padding: 9px 10px;
+        }
+
+        .room-state span {
+            color: rgba(255,255,255,0.82);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .room-state small {
+            color: white;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .game-layout {
+            display: grid;
+            grid-template-columns: minmax(0, max-content) minmax(340px, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+
+        .board-card,
+        .side-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+        }
+
+        .board-card {
+            overflow: hidden;
+            padding: 18px;
+        }
+
+        .board-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .board-title {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .status-pill {
+            border-radius: 999px;
+            background: rgba(24,33,47,0.08);
+            color: var(--ink-soft);
+            font-size: 13px;
+            padding: 8px 12px;
+        }
+
+        .board-scroll {
+            overflow: auto;
+            padding: 8px;
+            border-radius: 22px;
+            background: #aab6bf;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            touch-action: pan-x pan-y;
+        }
+
+        .board {
+            display: grid;
+            gap: 1px;
+            background: var(--board-line);
+            width: max-content;
+        }
+
+        .board-cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            border: 0;
+            border-radius: 3px;
+            background: var(--empty);
+            cursor: pointer;
+            padding: 0;
+            position: relative;
+            touch-action: manipulation;
+        }
+
+        .board-cell:hover {
+            filter: brightness(0.96);
+        }
+
+        .board-cell.filled {
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,0.3), inset 0 -4px 0 rgba(0,0,0,0.14);
+        }
+
+        .board-cell.blue { background: var(--blue); }
+        .board-cell.yellow { background: var(--yellow); }
+        .board-cell.red { background: var(--red); }
+        .board-cell.green { background: var(--green); }
+
+        .board-cell.preview {
+            outline: 2px solid rgba(24,33,47,0.28);
+            outline-offset: -3px;
+            opacity: 0.78;
+        }
+
+        .board-cell.preview.invalid {
+            background: repeating-linear-gradient(45deg, rgba(229,57,53,0.5), rgba(229,57,53,0.5) 4px, rgba(255,255,255,0.2) 4px, rgba(255,255,255,0.2) 8px);
+            opacity: 1;
+        }
+
+        .start-corner {
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,0.68);
+        }
+
+        .start-corner::after {
+            content: "";
+            position: absolute;
+            inset: 7px;
+            border: 2px solid var(--corner-color, rgba(24,33,47,0.42));
+            border-radius: 50%;
+            background: var(--corner-fill, transparent);
+        }
+
+        .start-corner.start-blue {
+            --corner-color: rgba(30,136,229,0.66);
+            --corner-fill: rgba(30,136,229,0.16);
+            background: rgba(30,136,229,0.08);
+        }
+
+        .start-corner.start-yellow {
+            --corner-color: rgba(245,178,27,0.72);
+            --corner-fill: rgba(245,178,27,0.2);
+            background: rgba(245,178,27,0.1);
+        }
+
+        .start-corner.start-red {
+            --corner-color: rgba(229,57,53,0.66);
+            --corner-fill: rgba(229,57,53,0.16);
+            background: rgba(229,57,53,0.08);
+        }
+
+        .start-corner.start-green {
+            --corner-color: rgba(67,160,71,0.68);
+            --corner-fill: rgba(67,160,71,0.16);
+            background: rgba(67,160,71,0.08);
+        }
+
+        .side-card {
+            padding: 18px;
+        }
+
+        .player-card {
+            border-radius: 22px;
+            color: white;
+            padding: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .player-card::after {
+            content: "";
+            position: absolute;
+            right: -30px;
+            top: -36px;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.22);
+        }
+
+        .player-card.blue { background: linear-gradient(135deg, #0f5fb0, #1e88e5); }
+        .player-card.yellow { background: linear-gradient(135deg, #b47800, #f5b21b); color: #271a00; }
+        .player-card.red { background: linear-gradient(135deg, #a11b18, #e53935); }
+        .player-card.green { background: linear-gradient(135deg, #1f7d38, #43a047); }
+
+        .player-card h2 {
+            margin: 0 0 8px;
+            font-size: 22px;
+        }
+
+        .player-card p {
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 14px 0;
+        }
+
+        .shortcut-help {
+            border: 1px dashed rgba(24,33,47,0.18);
+            border-radius: 16px;
+            background: rgba(255,255,255,0.54);
+            color: var(--ink-soft);
+            font-size: 13px;
+            line-height: 1.7;
+            margin: -2px 0 14px;
+            padding: 10px 12px;
+        }
+
+        .button.full {
+            grid-column: 1 / -1;
+        }
+
+        .message {
+            border-radius: 16px;
+            background: #fff8e6;
+            color: #593d00;
+            line-height: 1.6;
+            min-height: 52px;
+            padding: 12px 14px;
+        }
+
+        .pieces-title,
+        .score-title,
+        .log-title {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 18px 0 10px;
+        }
+
+        .pieces-title h3,
+        .score-title h3,
+        .log-title h3 {
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .piece-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+            gap: 10px;
+            max-height: 360px;
+            overflow: auto;
+            padding-right: 4px;
+        }
+
+        .piece-button {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(255,255,255,0.76);
+            cursor: pointer;
+            min-height: 88px;
+            padding: 8px;
+            transition: transform 0.14s ease, box-shadow 0.14s ease, border 0.14s ease;
+        }
+
+        .piece-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(24,33,47,0.1);
+        }
+
+        .piece-button.selected {
+            border-color: var(--ink);
+            box-shadow: 0 0 0 3px rgba(24,33,47,0.1);
+        }
+
+        .piece-button.used {
+            cursor: not-allowed;
+            filter: grayscale(1);
+            opacity: 0.36;
+            transform: none;
+        }
+
+        .piece-label {
+            display: block;
+            color: var(--ink-soft);
+            font-size: 12px;
+            margin-bottom: 6px;
+            text-align: center;
+        }
+
+        .mini-piece {
+            display: inline-grid;
+            gap: 2px;
+        }
+
+        .mini-wrap {
+            display: flex;
+            justify-content: center;
+        }
+
+        .mini-cell {
+            width: 11px;
+            height: 11px;
+            border-radius: 2px;
+        }
+
+        .mini-cell.empty {
+            background: transparent;
+        }
+
+        .mini-cell.blue { background: var(--blue); }
+        .mini-cell.yellow { background: var(--yellow); }
+        .mini-cell.red { background: var(--red); }
+        .mini-cell.green { background: var(--green); }
+
+        .score-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .score-row {
+            align-items: center;
+            background: rgba(255,255,255,0.62);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            display: grid;
+            grid-template-columns: 18px 1fr auto;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .score-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+        }
+
+        .score-dot.blue { background: var(--blue); }
+        .score-dot.yellow { background: var(--yellow); }
+        .score-dot.red { background: var(--red); }
+        .score-dot.green { background: var(--green); }
+
+        .log-list {
+            color: var(--ink-soft);
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 120px;
+            overflow: auto;
+            padding-left: 18px;
+        }
+
+        .result {
+            border-radius: 22px;
+            background: #ecfdf3;
+            border: 1px solid rgba(67,160,71,0.24);
+            margin-top: 14px;
+            padding: 14px;
+        }
+
+        .result h3 {
+            margin: 0 0 8px;
+        }
+
+        body.victory-open {
+            overflow: hidden;
+        }
+
+        .victory-modal {
+            align-items: center;
+            display: grid;
+            inset: 0;
+            isolation: isolate;
+            justify-items: center;
+            overflow: hidden;
+            padding: 24px;
+            position: fixed;
+            z-index: 1000;
+        }
+
+        .victory-modal.hidden {
+            display: none;
+        }
+
+        .victory-backdrop {
+            backdrop-filter: blur(8px);
+            background:
+                radial-gradient(circle at 50% 38%, var(--victory-glow), transparent 38%),
+                rgba(12, 18, 28, 0.76);
+            inset: 0;
+            position: absolute;
+            z-index: -3;
+        }
+
+        .victory-card {
+            --victory-main: var(--blue);
+            --victory-deep: #0d47a1;
+            --victory-soft: #e3f2fd;
+            --victory-glow: rgba(30, 136, 229, 0.36);
+            --victory-contrast: #ffffff;
+            animation: victory-card-in 0.52s cubic-bezier(0.18, 0.88, 0.3, 1.18) both;
+            background:
+                radial-gradient(circle at 50% -10%, var(--victory-glow), transparent 42%),
+                linear-gradient(160deg, #ffffff 10%, var(--victory-soft) 100%);
+            border: 2px solid var(--victory-main);
+            border-radius: 34px;
+            box-shadow:
+                0 0 0 8px rgba(255,255,255,0.08),
+                0 28px 90px rgba(0,0,0,0.4),
+                0 0 70px var(--victory-glow);
+            max-width: 560px;
+            overflow: hidden;
+            padding: 38px 38px 32px;
+            position: relative;
+            text-align: center;
+            width: min(100%, 560px);
+            z-index: 2;
+        }
+
+        .victory-card::before {
+            animation: victory-shine 2.8s ease-in-out infinite 0.65s;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.84), transparent);
+            content: "";
+            height: 180%;
+            left: -70%;
+            opacity: 0.72;
+            pointer-events: none;
+            position: absolute;
+            top: -40%;
+            transform: rotate(18deg);
+            width: 34%;
+        }
+
+        .victory-close {
+            align-items: center;
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(24,33,47,0.12);
+            border-radius: 50%;
+            color: var(--ink);
+            cursor: pointer;
+            display: flex;
+            font-size: 24px;
+            height: 38px;
+            justify-content: center;
+            line-height: 1;
+            position: absolute;
+            right: 16px;
+            top: 16px;
+            transition: transform 0.16s ease, background 0.16s ease;
+            width: 38px;
+            z-index: 3;
+        }
+
+        .victory-close:hover {
+            background: #ffffff;
+            transform: rotate(8deg) scale(1.06);
+        }
+
+        .victory-trophy {
+            animation: victory-trophy-bounce 1.6s ease-in-out infinite;
+            filter: drop-shadow(0 10px 16px rgba(95, 63, 0, 0.22));
+            font-size: 68px;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+
+        .victory-kicker {
+            color: var(--victory-deep);
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.22em;
+            margin: 0 0 8px;
+            text-transform: uppercase;
+        }
+
+        .victory-winner {
+            color: var(--victory-deep);
+            font-size: clamp(30px, 7vw, 48px);
+            letter-spacing: -0.04em;
+            line-height: 1.08;
+            margin: 0;
+        }
+
+        .victory-summary {
+            color: var(--ink-soft);
+            line-height: 1.7;
+            margin: 12px auto 20px;
+            max-width: 420px;
+        }
+
+        .victory-scores {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 22px;
+        }
+
+        .victory-score {
+            align-items: center;
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(24,33,47,0.1);
+            border-radius: 14px;
+            display: grid;
+            gap: 8px;
+            grid-template-columns: 12px 1fr auto;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .victory-score.winner {
+            border-color: var(--score-color);
+            box-shadow: 0 5px 18px var(--score-glow);
+            font-weight: 800;
+        }
+
+        .victory-score-dot {
+            background: var(--score-color);
+            border-radius: 50%;
+            height: 10px;
+            width: 10px;
+        }
+
+        .victory-score strong {
+            white-space: nowrap;
+        }
+
+        .victory-action {
+            background: var(--victory-main);
+            border: 0;
+            border-radius: 999px;
+            box-shadow: 0 12px 28px var(--victory-glow);
+            color: var(--victory-contrast);
+            cursor: pointer;
+            font-weight: 800;
+            min-height: 48px;
+            padding: 0 28px;
+            transition: transform 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .victory-action:hover {
+            box-shadow: 0 16px 34px var(--victory-glow);
+            transform: translateY(-2px);
+        }
+
+        .victory-firework {
+            animation: victory-firework-burst 2.2s ease-in-out infinite;
+            filter: drop-shadow(0 0 18px rgba(255,255,255,0.62));
+            font-size: clamp(48px, 9vw, 96px);
+            line-height: 1;
+            pointer-events: none;
+            position: absolute;
+            z-index: 1;
+        }
+
+        .victory-firework.one {
+            left: 7%;
+            top: 12%;
+        }
+
+        .victory-firework.two {
+            animation-delay: -0.7s;
+            right: 8%;
+            top: 16%;
+        }
+
+        .victory-firework.three {
+            animation-delay: -1.35s;
+            bottom: 10%;
+            left: 12%;
+        }
+
+        .victory-firework.four {
+            animation-delay: -1.8s;
+            bottom: 12%;
+            right: 11%;
+        }
+
+        .victory-confetti {
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            position: absolute;
+            z-index: 0;
+        }
+
+        .victory-confetti span {
+            animation: victory-confetti-fall var(--duration) linear infinite var(--delay);
+            background: var(--confetti-color);
+            border-radius: 2px;
+            height: 16px;
+            left: var(--left);
+            opacity: 0;
+            position: absolute;
+            top: -24px;
+            transform: rotate(var(--rotation));
+            width: 8px;
+        }
+
+        @keyframes victory-card-in {
+            from { opacity: 0; transform: translateY(28px) scale(0.86); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes victory-shine {
+            0%, 36% { left: -70%; }
+            68%, 100% { left: 145%; }
+        }
+
+        @keyframes victory-trophy-bounce {
+            0%, 100% { transform: translateY(0) rotate(-3deg); }
+            50% { transform: translateY(-8px) rotate(3deg); }
+        }
+
+        @keyframes victory-firework-burst {
+            0%, 100% { opacity: 0; transform: scale(0.35) rotate(-12deg); }
+            30%, 72% { opacity: 1; transform: scale(1) rotate(5deg); }
+        }
+
+        @keyframes victory-confetti-fall {
+            0% { opacity: 0; transform: translateY(-4vh) rotate(0deg); }
+            12% { opacity: 1; }
+            100% { opacity: 0.9; transform: translateY(110vh) rotate(720deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .victory-card,
+            .victory-card::before,
+            .victory-trophy,
+            .victory-firework,
+            .victory-confetti span {
+                animation: none;
+            }
+
+            .victory-confetti {
+                display: none;
+            }
+        }
+
+        @media (max-width: 980px) {
+            .topbar,
+            .game-layout,
+            .online-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-actions {
+                justify-content: flex-start;
+            }
+
+            .music-control {
+                max-width: 230px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            :root {
+                --cell-size: 30px;
+            }
+
+            .app {
+                padding: 12px;
+            }
+
+            .mode-panel,
+            .online-panel,
+            .board-card,
+            .side-card {
+                border-radius: 20px;
+                padding: 12px;
+            }
+
+            .online-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar .nav-actions,
+            .topbar .music-control {
+                max-width: none;
+                width: 100%;
+            }
+
+            .actions {
+                position: sticky;
+                bottom: 8px;
+                z-index: 20;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                background: rgba(255,255,255,0.92);
+                box-shadow: 0 14px 36px rgba(24,33,47,0.18);
+                padding: 10px;
+            }
+
+            .button,
+            .link-button {
+                min-height: 44px;
+                padding: 0 12px;
+            }
+
+            .piece-list {
+                grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+                max-height: 250px;
+            }
+
+            .piece-button {
+                min-height: 78px;
+            }
+
+            .shortcut-help {
+                font-size: 12px;
+            }
+
+            .victory-modal {
+                padding: 14px;
+            }
+
+            .victory-card {
+                border-radius: 26px;
+                padding: 32px 18px 24px;
+            }
+
+            .victory-scores {
+                grid-template-columns: 1fr;
+            }
+
+            .victory-firework.three,
+            .victory-firework.four {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="app">
+        <header class="topbar">
+            <div class="title-block">
+                <p class="eyebrow">FIREBASE CLOUD ROOM GAME</p>
+                <h1>鏂规牸娓告垙浜戣仈鏈虹増</h1>
+                <p class="subtitle">鍙笂鏈嬪弸锛屼粠鑷繁鐨勮捣濮嬭鍑哄彂鍚э紒鍚岃壊妫嬪瓙鍙兘瑙掔瑙掋€佷笉鑳借竟鐩搁偦锛涙兂鍔炴硶閾烘弧妫嬬洏锛屾渶鍚庡墿浣欐牸瀛愭渶灏戠殑鐜╁鑾疯儨锛?/p>
+            </div>
+            <nav class="nav-actions" aria-label="椤甸潰瀵艰埅">
+                <div class="music-control" id="musicControl">
+                    <span class="music-note" aria-hidden="true">鈾?/span>
+                    <select class="music-select" id="bgmSelect" aria-label="閫夋嫨鑳屾櫙闊充箰">
+                        <option value="contemplative" selected>娌夋€濈増 BGM</option>
+                        <option value="joyful">娆箰鐗?BGM</option>
+                    </select>
+                    <span class="music-status" id="bgmStatus" aria-live="polite">娌夋€濈増 路 鍑嗗鎾斁</span>
+                    <button class="music-toggle" id="bgmToggle" type="button" aria-label="鏆傚仠鑳屾櫙闊充箰" title="鏆傚仠鑳屾櫙闊充箰">
+                        <span id="bgmToggleIcon" aria-hidden="true">鈪?/span>
+                    </button>
+                </div>
+                <a class="link-button" href="./docs/妫嬪瓙璇存槑涔?html" target="_blank" rel="noopener">鏌ョ湅璇存槑涔?/a>
+                <a class="link-button" href="./game.html" target="_blank" rel="noopener">鏈湴鐗?/a>
+                <button class="button" id="resetGame">閲嶆柊寮€濮?/button>
+            </nav>
+        </header>
+
+        <section class="mode-panel" aria-label="娓告垙妯″紡璁剧疆">
+            <div>
+                <strong>鍏堥€夋嫨娓告垙浜烘暟鍜屾鐩橈紝鍐嶅垱寤哄搴旀埧闂?/strong>
+                <div style="color: var(--ink-soft); font-size: 13px; margin-top: 4px;">2 浜哄彲閫?10 脳 20 鎴?14 脳 14锛? 浜哄浐瀹?20 脳 20銆傛埧闂村垱寤哄悗妫嬪眬瑙勬牸閿佸畾銆?/div>
+            </div>
+            <div class="mode-buttons">
+                <button class="mode-button" data-mode="2" data-board-size="10x20"><strong>2 浜?/strong><span>10 脳 20 妫嬬洏</span></button>
+                <button class="mode-button" data-mode="2" data-board-size="14x14"><strong>2 浜?/strong><span>14 脳 14 妫嬬洏</span></button>
+                <button class="mode-button" data-mode="4" data-board-size="20x20"><strong>4 浜?/strong><span>20 脳 20 妫嬬洏</span></button>
+            </div>
+        </section>
+
+        <section class="online-panel" aria-label="鑱旀満鎴块棿">
+            <div class="online-card">
+                <div class="online-grid">
+                    <div>
+                        <label for="playerName">鐜╁鍚嶇О</label>
+                        <input id="playerName" maxlength="16" placeholder="渚嬪锛氬皬钃? autocomplete="off">
+                    </div>
+                    <div>
+                        <label for="joinRoomId">鎴块棿鍙?/label>
+                        <input id="joinRoomId" maxlength="8" placeholder="杈撳叆 4 浣嶆埧闂村彿" autocomplete="off">
+                    </div>
+                </div>
+                <div class="nav-actions" style="justify-content:flex-start; margin-top: 10px;">
+                    <button class="button primary" id="createRoom">鍒涘缓鎴块棿</button>
+                    <button class="button" id="joinRoom">鍔犲叆鎴块棿</button>
+                    <button class="button primary" id="startRoom">寮€濮嬪灞€</button>
+                    <button class="button warning" id="closeRoom">缁撴潫鎴块棿</button>
+                    <button class="button" id="reconnectRoom">閲嶈繛涓婃鎴块棿</button>
+                </div>
+                <p class="online-status" id="selectedRoomMode">褰撳墠灏嗗垱寤猴細4 浜?路 20 脳 20 妫嬬洏銆?/p>
+                <p class="online-status" id="onlineStatus">灏氭湭杩涘叆鎴块棿銆傚厛閫夋嫨浜烘暟鍜屾鐩橈紝鍐嶅垱寤烘埧闂淬€?/p>
+            </div>
+            <div class="online-card">
+                <p class="room-code"><span class="label">褰撳墠鎴块棿锛?/span><strong id="roomCode">----</strong><button class="button" id="copyRoomCode">澶嶅埗鎴块棿鍙?/button></p>
+                <div id="mySeat">浣犵殑韬唤锛氭湭鍏ュ骇</div>
+                <div class="player-list" id="roomPlayers"></div>
+            </div>
+        </section>
+
+        <section class="game-layout">
+            <section class="board-card">
+                <div class="board-header">
+                    <h2 class="board-title" id="boardTitle">20 脳 20 妫嬬洏</h2>
+                    <span class="status-pill" id="gameStatus">鏈湴杞祦妯″紡</span>
+                </div>
+                <div class="board-scroll">
+                    <div class="board" id="board" role="grid" aria-label="娓告垙妫嬬洏"></div>
+                </div>
+            </section>
+
+            <aside class="side-card">
+                <section class="player-card blue" id="currentPlayerCard">
+                    <h2 id="currentPlayerName">钃濊壊鐜╁</h2>
+                    <p id="currentPlayerHint">璇烽€夋嫨涓€鏋氭瀛愬紑濮嬨€?/p>
+                </section>
+
+                <div class="actions">
+                    <button class="button" id="rotateLeft">宸︽棆杞?/button>
+                    <button class="button" id="rotateRight">鍙虫棆杞?/button>
+                    <button class="button" id="flipPiece">娌?X 杞寸炕杞?/button>
+                    <button class="button danger" id="passTurn">璺宠繃鍥炲悎</button>
+                    <button class="button" id="restartRound">閲嶆柊寮€濮嬫湰灞€</button>
+                    <button class="button warning" id="endGame">鎵嬪姩缁撴潫娓告垙</button>
+                    <button class="button warning full hidden" id="autoSkipRest">鏃犲瓙鍙笅锛屼箣鍚庡潎璺宠繃</button>
+                </div>
+
+                <div class="shortcut-help">蹇嵎閿細閫変腑妫嬪瓙鍚庯紝鎸?鈫?鍚戝乏鏃嬭浆锛屾寜 鈫?鍚戝彸鏃嬭浆锛屾寜 鈫?/ 鈫?娌?X 杞寸炕杞紱榧犳爣绉诲埌妫嬬洏鐩爣浣嶇疆鍚庯紝鎸?Enter 纭钀藉瓙銆?/div>
+
+                <div class="message" id="message">閫夋嫨妫嬪瓙鍚庯紝妗岄潰绔偣鍑绘鐩樻牸鍗冲彲钀藉瓙锛涙墜鏈虹鍏堢偣涓€娆￠瑙堬紝鍐嶇偣鍚屼竴浣嶇疆纭銆?/div>
+
+                <div class="pieces-title">
+                    <h3>褰撳墠鐜╁妫嬪瓙</h3>
+                    <span class="status-pill" id="remainingCount">鍓╀綑 21 鏋?/span>
+                </div>
+                <div class="piece-list" id="pieceList"></div>
+
+                <div class="score-title">
+                    <h3>鍓╀綑鏍煎瓙鏁?/h3>
+                </div>
+                <div class="score-grid" id="scoreGrid"></div>
+
+                <div class="result hidden" id="resultPanel"></div>
+
+                <div class="log-title">
+                    <h3>鍥炲悎璁板綍</h3>
+                </div>
+                <ol class="log-list" id="actionLog"></ol>
+            </aside>
+        </section>
+    </main>
+
+    <audio id="bgmPlayer" autoplay loop playsinline preload="auto" src="./assets/audio/bgm/寮犱竴璇?- 淇′换鐨勮繘鍖?mp3"></audio>
+
+    <div class="victory-modal hidden" id="victoryModal" role="dialog" aria-modal="true" aria-labelledby="victoryWinner">
+        <div class="victory-backdrop"></div>
+        <div class="victory-confetti" aria-hidden="true">
+            <span style="--left: 6%; --delay: -0.8s; --duration: 4.6s; --rotation: 18deg; --confetti-color: #1e88e5;"></span>
+            <span style="--left: 14%; --delay: -3.1s; --duration: 5.2s; --rotation: 62deg; --confetti-color: #f5b21b;"></span>
+            <span style="--left: 23%; --delay: -1.7s; --duration: 4.2s; --rotation: 31deg; --confetti-color: #e53935;"></span>
+            <span style="--left: 32%; --delay: -4.1s; --duration: 5.7s; --rotation: 76deg; --confetti-color: #43a047;"></span>
+            <span style="--left: 41%; --delay: -2.4s; --duration: 4.9s; --rotation: 11deg; --confetti-color: #ffffff;"></span>
+            <span style="--left: 50%; --delay: -0.2s; --duration: 5.4s; --rotation: 49deg; --confetti-color: #f5b21b;"></span>
+            <span style="--left: 59%; --delay: -3.7s; --duration: 4.5s; --rotation: 26deg; --confetti-color: #1e88e5;"></span>
+            <span style="--left: 68%; --delay: -1.3s; --duration: 5.8s; --rotation: 83deg; --confetti-color: #43a047;"></span>
+            <span style="--left: 77%; --delay: -4.7s; --duration: 5.1s; --rotation: 39deg; --confetti-color: #e53935;"></span>
+            <span style="--left: 86%; --delay: -2.8s; --duration: 4.4s; --rotation: 68deg; --confetti-color: #ffffff;"></span>
+            <span style="--left: 94%; --delay: -1.9s; --duration: 5.5s; --rotation: 22deg; --confetti-color: #f5b21b;"></span>
+        </div>
+        <span class="victory-firework one" aria-hidden="true">馃巻</span>
+        <span class="victory-firework two" aria-hidden="true">馃巼</span>
+        <span class="victory-firework three" aria-hidden="true">馃巻</span>
+        <span class="victory-firework four" aria-hidden="true">馃巼</span>
+        <section class="victory-card" id="victoryCard">
+            <button class="victory-close" id="victoryClose" type="button" aria-label="鍏抽棴鑳滃埄缁撶畻鐢婚潰">脳</button>
+            <div class="victory-trophy" aria-hidden="true">馃弳</div>
+            <p class="victory-kicker">Victory 路 娓告垙缁撴潫</p>
+            <h2 class="victory-winner" id="victoryWinner">鑳滃埄锛?/h2>
+            <p class="victory-summary" id="victorySummary"></p>
+            <div class="victory-scores" id="victoryScores"></div>
+            <button class="victory-action" id="victoryViewBoard" type="button">鏌ョ湅鏈€缁堟鐩?/button>
+        </section>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+        import {
+            getAuth,
+            onAuthStateChanged,
+            signInAnonymously
+        } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+        import {
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            getFirestore,
+            increment,
+            onSnapshot,
+            runTransaction,
+            serverTimestamp,
+            setDoc,
+            updateDoc
+        } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+        import { firebaseConfig } from './firebase/firebase-config.js';
+
+        const COLORS = {
+            blue: { name: '钃濊壊鐜╁', css: 'blue' },
+            yellow: { name: '榛勮壊鐜╁', css: 'yellow' },
+            red: { name: '绾㈣壊鐜╁', css: 'red' },
+            green: { name: '缁胯壊鐜╁', css: 'green' }
+        };
+
+        const VICTORY_THEMES = {
+            blue: { main: '#1e88e5', deep: '#0d47a1', soft: '#e3f2fd', glow: 'rgba(30, 136, 229, 0.36)', contrast: '#ffffff' },
+            yellow: { main: '#f5b21b', deep: '#7a4b00', soft: '#fff7d6', glow: 'rgba(245, 178, 27, 0.42)', contrast: '#3d2a00' },
+            red: { main: '#e53935', deep: '#8e1613', soft: '#ffebee', glow: 'rgba(229, 57, 53, 0.36)', contrast: '#ffffff' },
+            green: { main: '#43a047', deep: '#1b5e20', soft: '#e8f5e9', glow: 'rgba(67, 160, 71, 0.36)', contrast: '#ffffff' },
+            tie: { main: '#7c4dff', deep: '#4527a0', soft: '#f1edff', glow: 'rgba(124, 77, 255, 0.38)', contrast: '#ffffff' }
+        };
+
+        const DEFAULT_BGM_ID = 'contemplative';
+        const BGM_TRACKS = {
+            contemplative: {
+                label: '娌夋€濈増',
+                src: './assets/audio/bgm/寮犱竴璇?- 淇′换鐨勮繘鍖?mp3'
+            },
+            joyful: {
+                label: '娆箰鐗?,
+                src: './assets/audio/bgm/Orkaxjan Emar - 瓒呯骇鐜涗附 (Super Malio Remix).mp3'
+            }
+        };
+
+        const PIECES = [
+            { id: 'p01', name: '鍗曠偣', cells: [[0, 0]] },
+            { id: 'p02', name: '鐩翠簩', cells: [[0, 0], [0, 1]] },
+            { id: 'p03', name: '鐩翠笁', cells: [[0, 0], [0, 1], [0, 2]] },
+            { id: 'p04', name: 'L褰笁', cells: [[0, 0], [1, 0], [1, 1]] },
+            { id: 'p05', name: '鐩村洓', cells: [[0, 0], [0, 1], [0, 2], [0, 3]] },
+            { id: 'p06', name: '鏂瑰潡', cells: [[0, 0], [0, 1], [1, 0], [1, 1]] },
+            { id: 'p07', name: 'T褰㈠洓', cells: [[0, 1], [1, 0], [1, 1], [1, 2]] },
+            { id: 'p08', name: 'L褰㈠洓', cells: [[0, 0], [1, 0], [2, 0], [2, 1]] },
+            { id: 'p09', name: 'S褰㈠洓', cells: [[0, 1], [0, 2], [1, 0], [1, 1]] },
+            { id: 'p10', name: '闀夸簲', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]] },
+            { id: 'p11', name: '4+1 宸︾', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 0]] },
+            { id: 'p12', name: 'N褰?, cells: [[0, 0], [0, 1], [1, 1], [1, 2], [2, 2]] },
+            { id: 'p13', name: 'P褰?, cells: [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0]] },
+            { id: 'p14', name: 'U褰?, cells: [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2]] },
+            { id: 'p15', name: 'V褰?, cells: [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]] },
+            { id: 'p16', name: '4+1 浜屼綅', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 1]] },
+            { id: 'p17', name: '闂數鍨?, cells: [[0, 2], [0, 3], [1, 0], [1, 1], [1, 2]] },
+            { id: 'p18', name: 'T褰簲', cells: [[0, 1], [1, 1], [2, 0], [2, 1], [2, 2]] },
+            { id: 'p19', name: '鍗佸瓧', cells: [[0, 1], [1, 0], [1, 1], [1, 2], [2, 1]] },
+            { id: 'p20', name: 'Z褰簲', cells: [[0, 0], [0, 1], [1, 1], [2, 1], [2, 2]] },
+            { id: 'p21', name: 'F褰?, cells: [[0, 1], [0, 2], [1, 0], [1, 1], [2, 1]] }
+        ];
+
+        const pieceById = Object.fromEntries(PIECES.map((piece) => [piece.id, piece]));
+
+        function normalize(cells) {
+            const minRow = Math.min(...cells.map(([row]) => row));
+            const minCol = Math.min(...cells.map(([, col]) => col));
+            return cells
+                .map(([row, col]) => [row - minRow, col - minCol])
+                .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+        }
+
+        function rotateCells(cells, direction) {
+            if (direction === 'left') {
+                return normalize(cells.map(([row, col]) => [-col, row]));
+            }
+            return normalize(cells.map(([row, col]) => [col, -row]));
+        }
+
+        function flipCells(cells) {
+            return normalize(cells.map(([row, col]) => [-row, col]));
+        }
+
+        function cellKey(row, col) {
+            return `${row},${col}`;
+        }
+
+        function pieceSize(pieceId) {
+            return pieceById[pieceId].cells.length;
+        }
+
+        function createInitialState(mode = 4, boardSize = mode === 2 ? '10x20' : '20x20') {
+            const [boardRows, boardCols] = boardSize.split('x').map(Number);
+            const activeColors = mode === 2 ? ['blue', 'yellow'] : ['blue', 'yellow', 'red', 'green'];
+            const corners = {
+                blue: { row: boardRows - 1, col: 0 },
+                yellow: mode === 2 ? { row: 0, col: boardCols - 1 } : { row: 0, col: 0 },
+                red: { row: 0, col: boardCols - 1 },
+                green: { row: boardRows - 1, col: boardCols - 1 }
+            };
+
+            return {
+                mode,
+                boardSize,
+                boardRows,
+                boardCols,
+                board: Array.from({ length: boardRows }, () => Array(boardCols).fill(null)),
+                players: activeColors.map((color) => ({
+                    id: color,
+                    color,
+                    name: COLORS[color].name,
+                    startCorner: corners[color],
+                    remainingPieceIds: PIECES.map((piece) => piece.id),
+                    hasPlacedFirstPiece: false,
+                    passed: false,
+                    autoSkip: false
+                })),
+                currentPlayerIndex: 0,
+                selectedPieceId: null,
+                selectedCells: null,
+                hover: null,
+                message: '璇烽€夋嫨涓€鏋氭瀛愩€傞鏋氭瀛愬繀椤昏鐩栬嚜宸辩殑璧峰瑙掋€?,
+                consecutivePasses: 0,
+                status: 'playing',
+                winnerIds: [],
+                actionLog: []
+            };
+        }
+
+        function getCurrentPlayer(state) {
+            return state.players[state.currentPlayerIndex];
+        }
+
+        function getAbsoluteCells(cells, anchorRow, anchorCol) {
+            return cells.map(([row, col]) => [anchorRow + row, anchorCol + col]);
+        }
+
+        function validatePlacement(state, player, pieceCells, anchorRow, anchorCol) {
+            const absoluteCells = getAbsoluteCells(pieceCells, anchorRow, anchorCol);
+            const pieceSet = new Set(absoluteCells.map(([row, col]) => cellKey(row, col)));
+
+            for (const [row, col] of absoluteCells) {
+                if (row < 0 || row >= state.boardRows || col < 0 || col >= state.boardCols) {
+                    return { ok: false, reason: '妫嬪瓙瓒呭嚭浜嗘鐩樿寖鍥淬€? };
+                }
+                if (state.board[row][col]) {
+                    return { ok: false, reason: '杩欓噷宸茬粡鏈夋瀛愪簡锛屼笉鑳介噸鍙犳憜鏀俱€? };
+                }
+            }
+
+            if (!player.hasPlacedFirstPiece) {
+                const coversCorner = pieceSet.has(cellKey(player.startCorner.row, player.startCorner.col));
+                return coversCorner
+                    ? { ok: true, reason: '' }
+                    : { ok: false, reason: '棣栨灇妫嬪瓙蹇呴』瑕嗙洊鑷繁鐨勮捣濮嬭銆? };
+            }
+
+            let hasCornerTouch = false;
+            const edgeDirections = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+            const cornerDirections = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+            for (const [row, col] of absoluteCells) {
+                for (const [dr, dc] of edgeDirections) {
+                    const nr = row + dr;
+                    const nc = col + dc;
+                    if (state.board[nr]?.[nc]?.color === player.color) {
+                        return { ok: false, reason: '鍚岃壊妫嬪瓙涔嬮棿涓嶈兘杈圭浉閭伙紝鍙兘閫氳繃椤惰鐩歌繛銆? };
+                    }
+                }
+                for (const [dr, dc] of cornerDirections) {
+                    const nr = row + dr;
+                    const nc = col + dc;
+                    if (state.board[nr]?.[nc]?.color === player.color) {
+                        hasCornerTouch = true;
+                    }
+                }
+            }
+
+            if (!hasCornerTouch) {
+                return { ok: false, reason: '杩欐灇妫嬪瓙鑷冲皯瑕佷笌涓€棰楀悓鑹叉瀛愮殑椤惰鐩歌繛銆? };
+            }
+
+            return { ok: true, reason: '' };
+        }
+
+        function canPlaceAnyPiece(state, player) {
+            return player.remainingPieceIds.some((pieceId) => {
+                const variants = getUniqueVariants(pieceById[pieceId].cells);
+                return variants.some((cells) => {
+                    for (let row = 0; row < state.boardRows; row++) {
+                        for (let col = 0; col < state.boardCols; col++) {
+                            if (validatePlacement(state, player, cells, row, col).ok) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                });
+            });
+        }
+
+        function getUniqueVariants(cells) {
+            const variants = [];
+            let current = normalize(cells);
+            for (let flip = 0; flip < 2; flip++) {
+                let rotated = flip ? flipCells(current) : current;
+                for (let i = 0; i < 4; i++) {
+                    const signature = JSON.stringify(rotated);
+                    if (!variants.some((item) => JSON.stringify(item) === signature)) {
+                        variants.push(rotated);
+                    }
+                    rotated = rotateCells(rotated, 'right');
+                }
+            }
+            return variants;
+        }
+
+        function finishGame(state) {
+            const scores = state.players.map((player) => ({
+                id: player.id,
+                remaining: player.remainingPieceIds.reduce((sum, pieceId) => sum + pieceSize(pieceId), 0)
+            }));
+            const minScore = Math.min(...scores.map((score) => score.remaining));
+            return {
+                ...state,
+                status: 'finished',
+                winnerIds: scores.filter((score) => score.remaining === minScore).map((score) => score.id),
+                message: '娓告垙缁撴潫銆傚墿浣欐牸瀛愭暟鏈€灏戠殑鐜╁鑾疯儨銆?
+            };
+        }
+
+        function skipAutoPlayers(state) {
+            let nextState = state;
+            let skippedCount = 0;
+
+            while (nextState.status !== 'finished' && getCurrentPlayer(nextState).autoSkip && skippedCount < nextState.players.length) {
+                const skippedPlayer = getCurrentPlayer(nextState);
+                nextState = {
+                    ...nextState,
+                    currentPlayerIndex: (nextState.currentPlayerIndex + 1) % nextState.players.length,
+                    selectedPieceId: null,
+                    selectedCells: null,
+                    hover: null,
+                    message: `${skippedPlayer.name} 宸茶缃箣鍚庡潎璺宠繃锛岃嚜鍔ㄨ疆鍒颁笅涓€浣嶇帺瀹躲€俙,
+                    consecutivePasses: nextState.consecutivePasses + 1
+                };
+                skippedCount += 1;
+
+                if (nextState.consecutivePasses >= nextState.players.length) {
+                    return finishGame(nextState);
+                }
+            }
+
+            if (nextState.players.every((player) => player.autoSkip || player.remainingPieceIds.length === 0)) {
+                return finishGame(nextState);
+            }
+            return nextState;
+        }
+
+        function advanceTurn(state, message, passIncrement = 0) {
+            const nextIndex = (state.currentPlayerIndex + 1) % state.players.length;
+            const nextState = {
+                ...state,
+                currentPlayerIndex: nextIndex,
+                selectedPieceId: null,
+                selectedCells: null,
+                hover: null,
+                message,
+                consecutivePasses: passIncrement ? state.consecutivePasses + passIncrement : 0
+            };
+
+            if (nextState.consecutivePasses >= nextState.players.length || nextState.players.every((player) => player.remainingPieceIds.length === 0)) {
+                return finishGame(nextState);
+            }
+            return skipAutoPlayers(nextState);
+        }
+
+        function reducer(state, action) {
+            if (action.type === 'START_GAME') {
+                return createInitialState(action.mode, action.boardSize);
+            }
+
+            if (state.status === 'finished' && action.type !== 'RESET_GAME') {
+                return state;
+            }
+
+            const player = getCurrentPlayer(state);
+
+            switch (action.type) {
+                case 'RESET_GAME':
+                    return createInitialState(state.mode, state.boardSize);
+                case 'SET_MESSAGE':
+                    return {
+                        ...state,
+                        message: action.message
+                    };
+                case 'END_GAME':
+                    return finishGame({
+                        ...state,
+                        selectedPieceId: null,
+                        selectedCells: null,
+                        hover: null,
+                        actionLog: ['鎵嬪姩缁撴潫浜嗘湰灞€娓告垙', ...state.actionLog].slice(0, 12)
+                    });
+                case 'AUTO_SKIP_REST': {
+                    if (player.remainingPieceIds.length > 10 || player.autoSkip) return state;
+                    const nextPlayers = state.players.map((item) => item.id === player.id ? {
+                        ...item,
+                        autoSkip: true,
+                        passed: true
+                    } : item);
+                    const nextState = {
+                        ...state,
+                        players: nextPlayers,
+                        selectedPieceId: null,
+                        selectedCells: null,
+                        hover: null,
+                        actionLog: [`${player.name} 璁剧疆涓轰箣鍚庡潎璺宠繃`, ...state.actionLog].slice(0, 12)
+                    };
+                    return advanceTurn(nextState, `${player.name} 宸茶缃箣鍚庡潎璺宠繃锛岃疆鍒颁笅涓€浣嶇帺瀹躲€俙, 1);
+                }
+                case 'SELECT_PIECE': {
+                    if (!player.remainingPieceIds.includes(action.pieceId)) return state;
+                    return {
+                        ...state,
+                        selectedPieceId: action.pieceId,
+                        selectedCells: normalize(pieceById[action.pieceId].cells),
+                        hover: null,
+                        message: `宸查€夋嫨銆?{pieceById[action.pieceId].name}銆嶃€傜偣鍑绘鐩樻牸鍗冲彲灏濊瘯钀藉瓙銆俙
+                    };
+                }
+                case 'ROTATE_PIECE': {
+                    if (!state.selectedCells) return { ...state, message: '璇峰厛閫夋嫨涓€鏋氭瀛愩€? };
+                    return {
+                        ...state,
+                        selectedCells: rotateCells(state.selectedCells, action.direction),
+                        hover: null,
+                        message: action.direction === 'left' ? '宸插悜宸︽棆杞€? : '宸插悜鍙虫棆杞€?
+                    };
+                }
+                case 'FLIP_PIECE': {
+                    if (!state.selectedCells) return { ...state, message: '璇峰厛閫夋嫨涓€鏋氭瀛愩€? };
+                    return {
+                        ...state,
+                        selectedCells: flipCells(state.selectedCells),
+                        hover: null,
+                        message: '宸叉部 X 杞寸炕杞紙涓婁笅闀滃儚锛夈€?
+                    };
+                }
+                case 'SET_HOVER':
+                    return { ...state, hover: action.row === null ? null : { row: action.row, col: action.col } };
+                case 'PLACE_PIECE': {
+                    if (!state.selectedPieceId || !state.selectedCells) {
+                        return { ...state, message: '璇峰厛閫夋嫨涓€鏋氭瀛愩€? };
+                    }
+                    const validation = validatePlacement(state, player, state.selectedCells, action.row, action.col);
+                    if (!validation.ok) {
+                        return { ...state, message: validation.reason };
+                    }
+
+                    const nextBoard = state.board.map((row) => row.slice());
+                    getAbsoluteCells(state.selectedCells, action.row, action.col).forEach(([row, col]) => {
+                        nextBoard[row][col] = { color: player.color, pieceId: state.selectedPieceId };
+                    });
+
+                    const nextPlayers = state.players.map((item) => {
+                        if (item.id !== player.id) return item;
+                        return {
+                            ...item,
+                            remainingPieceIds: item.remainingPieceIds.filter((id) => id !== state.selectedPieceId),
+                            hasPlacedFirstPiece: true,
+                            passed: false,
+                            autoSkip: false
+                        };
+                    });
+
+                    const placedName = pieceById[state.selectedPieceId].name;
+                    const nextState = {
+                        ...state,
+                        board: nextBoard,
+                        players: nextPlayers,
+                        actionLog: [`${player.name} 鏀剧疆浜嗐€?{placedName}銆峘, ...state.actionLog].slice(0, 12)
+                    };
+                    return advanceTurn(nextState, `${player.name} 宸茶惤瀛愶紝杞埌涓嬩竴浣嶇帺瀹躲€俙, 0);
+                }
+                case 'PASS_TURN': {
+                    const canMove = canPlaceAnyPiece(state, player);
+                    const nextPlayers = state.players.map((item) => item.id === player.id ? { ...item, passed: true } : item);
+                    const nextState = {
+                        ...state,
+                        players: nextPlayers,
+                        actionLog: [`${player.name} 璺宠繃浜嗘湰鍥炲悎${canMove ? '锛堜粛鍙兘瀛樺湪鍙惤瀛愪綅缃級' : ''}`, ...state.actionLog].slice(0, 12)
+                    };
+                    return advanceTurn(nextState, `${player.name} 宸茶烦杩囷紝杞埌涓嬩竴浣嶇帺瀹躲€俙, 1);
+                }
+                default:
+                    return state;
+            }
+        }
+
+        function createLocalTransport(initialState) {
+            let state = initialState;
+            const listeners = new Set();
+            return {
+                dispatch(action) {
+                    const blockMessage = getOnlineBlockMessage(action, state);
+                    if (blockMessage) {
+                        if (['RESET_GAME', 'END_GAME', 'START_GAME'].includes(action.type)) {
+                            window.alert(blockMessage);
+                        }
+                        state = reducer(state, { type: 'SET_MESSAGE', message: blockMessage });
+                        listeners.forEach((listener) => listener(state));
+                        return;
+                    }
+                    const previousState = state;
+                    state = reducer(state, action);
+                    listeners.forEach((listener) => listener(state));
+                    syncOnlineSnapshot(action, previousState, state);
+                },
+                subscribe(listener) {
+                    listeners.add(listener);
+                    listener(state);
+                    return () => listeners.delete(listener);
+                },
+                setState(nextState) {
+                    state = nextState;
+                    listeners.forEach((listener) => listener(state));
+                },
+                getState() {
+                    return state;
+                }
+            };
+        }
+
+        /*
+         * 鑱旀満鐗堥鐣欒竟鐣岋細
+         * 鍚庣画鍙渶瑕佸疄鐜板悓鏍风殑 dispatch / subscribe 鍗忚锛屾妸 LocalTransport
+         * 鏇挎崲涓?RoomTransport锛屽苟灏?GameAction 鍙戦€佸埌鎴块棿鏈嶅姟鍣ㄥ嵆鍙€?         * RoomTransport 鍙墿灞?createRoom(roomOptions)銆乯oinRoom(roomId)銆?         * syncSnapshot() 鍜?reconnect() 绛夋柟娉曘€?         */
+
+        const transport = createLocalTransport(createInitialState(4));
+
+        const elements = {
+            board: document.getElementById('board'),
+            boardTitle: document.getElementById('boardTitle'),
+            gameStatus: document.getElementById('gameStatus'),
+            currentPlayerCard: document.getElementById('currentPlayerCard'),
+            currentPlayerName: document.getElementById('currentPlayerName'),
+            currentPlayerHint: document.getElementById('currentPlayerHint'),
+            pieceList: document.getElementById('pieceList'),
+            message: document.getElementById('message'),
+            remainingCount: document.getElementById('remainingCount'),
+            scoreGrid: document.getElementById('scoreGrid'),
+            resultPanel: document.getElementById('resultPanel'),
+            actionLog: document.getElementById('actionLog'),
+            musicControl: document.getElementById('musicControl'),
+            bgmPlayer: document.getElementById('bgmPlayer'),
+            bgmSelect: document.getElementById('bgmSelect'),
+            bgmStatus: document.getElementById('bgmStatus'),
+            bgmToggle: document.getElementById('bgmToggle'),
+            bgmToggleIcon: document.getElementById('bgmToggleIcon'),
+            victoryModal: document.getElementById('victoryModal'),
+            victoryCard: document.getElementById('victoryCard'),
+            victoryWinner: document.getElementById('victoryWinner'),
+            victorySummary: document.getElementById('victorySummary'),
+            victoryScores: document.getElementById('victoryScores'),
+            victoryClose: document.getElementById('victoryClose'),
+            victoryViewBoard: document.getElementById('victoryViewBoard'),
+            autoSkipRest: document.getElementById('autoSkipRest'),
+            playerName: document.getElementById('playerName'),
+            joinRoomId: document.getElementById('joinRoomId'),
+            createRoom: document.getElementById('createRoom'),
+            joinRoom: document.getElementById('joinRoom'),
+            reconnectRoom: document.getElementById('reconnectRoom'),
+            onlineStatus: document.getElementById('onlineStatus'),
+            roomCode: document.getElementById('roomCode'),
+            copyRoomCode: document.getElementById('copyRoomCode'),
+            mySeat: document.getElementById('mySeat'),
+            roomPlayers: document.getElementById('roomPlayers'),
+            startRoom: document.getElementById('startRoom'),
+            closeRoom: document.getElementById('closeRoom'),
+            selectedRoomMode: document.getElementById('selectedRoomMode')
+        };
+
+        let currentPreviewAnchor = null;
+        let suppressNextBoardClick = false;
+        let applyingRemoteSnapshot = false;
+        let victoryModalDismissed = false;
+        let bgmWantsToPlay = true;
+        let bgmUnlockArmed = false;
+        let roomUnsubscribes = [];
+        let firebaseApp = null;
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let authReadyPromise = null;
+        let onlineSession = {
+            roomId: null,
+            clientId: null,
+            color: null,
+            host: false,
+            room: null
+        };
+
+        function getSelectedBgm() {
+            return BGM_TRACKS[elements.bgmSelect.value] || BGM_TRACKS[DEFAULT_BGM_ID];
+        }
+
+        function updateBgmControls(statusText, needsAction = false) {
+            const isPlaying = !elements.bgmPlayer.paused;
+            elements.musicControl.classList.toggle('is-paused', !isPlaying);
+            elements.musicControl.classList.toggle('needs-action', needsAction);
+            elements.bgmStatus.textContent = statusText;
+            elements.bgmToggleIcon.textContent = isPlaying ? '鈪? : '鈻?;
+            elements.bgmToggle.setAttribute('aria-label', isPlaying ? '鏆傚仠鑳屾櫙闊充箰' : '鎾斁鑳屾櫙闊充箰');
+            elements.bgmToggle.title = isPlaying ? '鏆傚仠鑳屾櫙闊充箰' : '鎾斁鑳屾櫙闊充箰';
+        }
+
+        function disarmBgmUnlock() {
+            if (!bgmUnlockArmed) return;
+            document.removeEventListener('pointerdown', handleBgmUnlock, true);
+            document.removeEventListener('keydown', handleBgmUnlock, true);
+            bgmUnlockArmed = false;
+        }
+
+        function handleBgmUnlock(event) {
+            disarmBgmUnlock();
+            if (event.target.closest?.('#bgmToggle, #bgmSelect')) return;
+            if (bgmWantsToPlay && elements.bgmPlayer.paused) {
+                playBgm();
+            }
+        }
+
+        function armBgmUnlock() {
+            if (bgmUnlockArmed) return;
+            bgmUnlockArmed = true;
+            document.addEventListener('pointerdown', handleBgmUnlock, { once: true, capture: true });
+            document.addEventListener('keydown', handleBgmUnlock, { once: true, capture: true });
+        }
+
+        async function playBgm() {
+            bgmWantsToPlay = true;
+            const track = getSelectedBgm();
+            try {
+                await elements.bgmPlayer.play();
+                disarmBgmUnlock();
+                updateBgmControls(`${track.label} 路 鎾斁涓璥);
+            } catch (error) {
+                if (!bgmWantsToPlay) return;
+                const autoplayBlocked = error?.name === 'NotAllowedError';
+                updateBgmControls(
+                    autoplayBlocked ? '鐐瑰嚮椤甸潰鍚庤嚜鍔ㄦ挱鏀? : `${track.label} 路 鍔犺浇澶辫触`,
+                    autoplayBlocked
+                );
+                if (autoplayBlocked) armBgmUnlock();
+            }
+        }
+
+        function pauseBgm() {
+            bgmWantsToPlay = false;
+            disarmBgmUnlock();
+            elements.bgmPlayer.pause();
+            updateBgmControls(`${getSelectedBgm().label} 路 宸叉殏鍋渀);
+        }
+
+        function setBgmTrack(trackId, playIfWanted = true) {
+            const resolvedId = BGM_TRACKS[trackId] ? trackId : DEFAULT_BGM_ID;
+            const track = BGM_TRACKS[resolvedId];
+            const resolvedSrc = new URL(track.src, window.location.href).href;
+            elements.bgmSelect.value = resolvedId;
+            if (elements.bgmPlayer.src !== resolvedSrc) {
+                elements.bgmPlayer.src = track.src;
+                elements.bgmPlayer.load();
+            }
+            updateBgmControls(`${track.label} 路 ${bgmWantsToPlay ? '鍑嗗鎾斁' : '宸叉殏鍋?}`);
+            if (playIfWanted && bgmWantsToPlay) {
+                playBgm();
+            }
+        }
+
+        function renderMiniPiece(piece, color) {
+            const cells = normalize(piece.cells);
+            const maxRow = Math.max(...cells.map(([row]) => row));
+            const maxCol = Math.max(...cells.map(([, col]) => col));
+            const set = new Set(cells.map(([row, col]) => cellKey(row, col)));
+            let html = `<span class="mini-piece" style="grid-template-columns: repeat(${maxCol + 1}, 11px);">`;
+            for (let row = 0; row <= maxRow; row++) {
+                for (let col = 0; col <= maxCol; col++) {
+                    html += `<span class="mini-cell ${set.has(cellKey(row, col)) ? color : 'empty'}"></span>`;
+                }
+            }
+            html += '</span>';
+            return html;
+        }
+
+        function getPreview(state) {
+            if (!state.selectedCells || !state.hover) return null;
+            const player = getCurrentPlayer(state);
+            const absoluteCells = getAbsoluteCells(state.selectedCells, state.hover.row, state.hover.col);
+            const validation = validatePlacement(state, player, state.selectedCells, state.hover.row, state.hover.col);
+            return {
+                valid: validation.ok,
+                color: player.color,
+                cells: new Set(absoluteCells.map(([row, col]) => cellKey(row, col)))
+            };
+        }
+
+        function renderBoard(state) {
+            const preview = getPreview(state);
+            elements.board.style.gridTemplateColumns = `repeat(${state.boardCols}, var(--cell-size))`;
+            elements.board.innerHTML = '';
+
+            const startColorByCell = new Map(state.players.map((player) => [
+                cellKey(player.startCorner.row, player.startCorner.col),
+                player.color
+            ]));
+            for (let row = 0; row < state.boardRows; row++) {
+                for (let col = 0; col < state.boardCols; col++) {
+                    const data = state.board[row][col];
+                    const button = document.createElement('button');
+                    const key = cellKey(row, col);
+                    const previewHit = preview?.cells.has(key);
+                    const startColor = startColorByCell.get(key);
+                    button.type = 'button';
+                    button.className = [
+                        'board-cell',
+                        data ? `filled ${data.color}` : '',
+                        previewHit ? `preview ${preview.color}` : '',
+                        previewHit && !preview.valid ? 'invalid' : '',
+                        startColor && !data ? `start-corner start-${startColor}` : ''
+                    ].filter(Boolean).join(' ');
+                    button.setAttribute('role', 'gridcell');
+                    button.setAttribute('aria-label', `绗?${row + 1} 琛岀 ${col + 1} 鍒梎);
+                    button.dataset.row = String(row);
+                    button.dataset.col = String(col);
+                    button.tabIndex = 0;
+                    elements.board.appendChild(button);
+                }
+            }
+        }
+
+        function renderPieces(state) {
+            const player = getCurrentPlayer(state);
+            elements.pieceList.innerHTML = '';
+            PIECES.forEach((piece, index) => {
+                const available = player.remainingPieceIds.includes(piece.id);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = [
+                    'piece-button',
+                    state.selectedPieceId === piece.id ? 'selected' : '',
+                    available ? '' : 'used'
+                ].filter(Boolean).join(' ');
+                button.disabled = !available || state.status === 'finished';
+                button.innerHTML = `
+                    <span class="piece-label">${index + 1}. ${piece.name}</span>
+                    <span class="mini-wrap">${renderMiniPiece(piece, player.color)}</span>
+                `;
+                button.addEventListener('click', () => transport.dispatch({ type: 'SELECT_PIECE', pieceId: piece.id }));
+                elements.pieceList.appendChild(button);
+            });
+            elements.remainingCount.textContent = `鍓╀綑 ${player.remainingPieceIds.length} 鏋歚;
+        }
+
+        function renderScores(state) {
+            elements.scoreGrid.innerHTML = '';
+            state.players.forEach((player) => {
+                const remaining = player.remainingPieceIds.reduce((sum, pieceId) => sum + pieceSize(pieceId), 0);
+                const row = document.createElement('div');
+                row.className = 'score-row';
+                row.innerHTML = `
+                    <span class="score-dot ${player.color}"></span>
+                    <span>${player.name}${player.autoSkip ? ' 路 涔嬪悗鍧囪烦杩? : ''}${state.winnerIds.includes(player.id) ? ' 路 鑾疯儨' : ''}</span>
+                    <strong>${remaining} 鏍?/strong>
+                `;
+                elements.scoreGrid.appendChild(row);
+            });
+        }
+
+        function dismissVictoryModal() {
+            victoryModalDismissed = true;
+            elements.victoryModal.classList.add('hidden');
+            document.body.classList.remove('victory-open');
+        }
+
+        function renderResult(state) {
+            if (state.status !== 'finished') {
+                elements.resultPanel.classList.add('hidden');
+                elements.resultPanel.innerHTML = '';
+                elements.victoryModal.classList.add('hidden');
+                document.body.classList.remove('victory-open');
+                victoryModalDismissed = false;
+                return;
+            }
+
+            const winnerPlayers = state.players.filter((player) => state.winnerIds.includes(player.id));
+            const winners = winnerPlayers.map((player) => player.name).join('銆?);
+            const scores = state.players.map((player) => ({
+                player,
+                remaining: player.remainingPieceIds.reduce((sum, pieceId) => sum + pieceSize(pieceId), 0)
+            }));
+            const winningScore = Math.min(...scores.map((score) => score.remaining));
+            const theme = winnerPlayers.length === 1
+                ? VICTORY_THEMES[winnerPlayers[0].color]
+                : VICTORY_THEMES.tie;
+
+            elements.resultPanel.classList.remove('hidden');
+            elements.resultPanel.innerHTML = `
+                <h3>娓告垙缁撴潫</h3>
+                <p>鑾疯儨鑰咃細<strong>${winners}</strong></p>
+                <p>鎸夊墿浣欐牸瀛愭暟鏈€灏戝垽瀹氳儨璐熴€?/p>
+            `;
+
+            [elements.victoryModal, elements.victoryCard].forEach((element) => {
+                element.style.setProperty('--victory-main', theme.main);
+                element.style.setProperty('--victory-deep', theme.deep);
+                element.style.setProperty('--victory-soft', theme.soft);
+                element.style.setProperty('--victory-glow', theme.glow);
+                element.style.setProperty('--victory-contrast', theme.contrast);
+            });
+            elements.victoryWinner.textContent = winnerPlayers.length > 1
+                ? `${winners}骞跺垪鑳滃埄锛乣
+                : `${winners}鑳滃埄锛乣;
+            elements.victorySummary.textContent = winnerPlayers.length > 1
+                ? `鍔垮潎鍔涙晫锛佽儨鍒╂柟鍧囧墿浣?${winningScore} 鏍硷紝鍏变韩鏈眬鑽ｈ€€銆俙
+                : `浠ュ墿浣?${winningScore} 鏍肩殑鎴愮哗璧㈠緱鏈眬锛岀儫鑺变负鑳滃埄鑰呯唤鏀撅紒`;
+            elements.victoryScores.innerHTML = scores.map(({ player, remaining }) => {
+                const playerTheme = VICTORY_THEMES[player.color];
+                const winnerClass = state.winnerIds.includes(player.id) ? ' winner' : '';
+                return `
+                    <div class='victory-score${winnerClass}' style='--score-color: ${playerTheme.main}; --score-glow: ${playerTheme.glow};'>
+                        <span class='victory-score-dot'></span>
+                        <span>${player.name}${winnerClass ? ' 路 鑳滃埄' : ''}</span>
+                        <strong>${remaining} 鏍?/strong>
+                    </div>
+                `;
+            }).join('');
+
+            if (!victoryModalDismissed) {
+                const wasHidden = elements.victoryModal.classList.contains('hidden');
+                elements.victoryModal.classList.remove('hidden');
+                document.body.classList.add('victory-open');
+                if (wasHidden) {
+                    requestAnimationFrame(() => elements.victoryViewBoard.focus());
+                }
+            }
+        }
+
+        function renderLog(state) {
+            elements.actionLog.innerHTML = state.actionLog.map((item) => `<li>${item}</li>`).join('');
+        }
+
+        function colorName(color) {
+            return color ? COLORS[color]?.name || color : '瑙傛垬';
+        }
+
+        function isInOnlineRoom() {
+            return Boolean(onlineSession.roomId && onlineSession.clientId);
+        }
+
+        function getOnlineBlockMessage(action, state) {
+            if (applyingRemoteSnapshot || !isInOnlineRoom()) return '';
+            if (['SET_MESSAGE', 'SET_HOVER'].includes(action.type)) return '';
+
+            if (['RESET_GAME', 'END_GAME'].includes(action.type) && !onlineSession.host) {
+                return '鍙湁鎴夸富鍙互閲嶅紑銆佺粨鏉熸垨鍒囨崲妫嬬洏銆?;
+            }
+
+            if (action.type === 'START_GAME') {
+                return onlineSession.host
+                    ? '鎴块棿鍒涘缓鍚庝笉鑳藉垏鎹㈡灞€銆傝缁撴潫褰撳墠鎴块棿鍚庨噸鏂板垱寤恒€?
+                    : '鍙湁鎴夸富鍙互閲嶅紑銆佺粨鏉熸垨鍒囨崲妫嬬洏銆?;
+            }
+
+            const turnActions = ['SELECT_PIECE', 'ROTATE_PIECE', 'FLIP_PIECE', 'PLACE_PIECE', 'PASS_TURN', 'AUTO_SKIP_REST'];
+            if (turnActions.includes(action.type)) {
+                if (onlineSession.room?.status !== 'playing') return '鎴块棿杩樻湭寮€濮嬨€傝绛夊緟浜烘暟婊″憳鍚庣敱鎴夸富鐐瑰嚮鈥滃紑濮嬪灞€鈥濄€?;
+                const currentPlayer = getCurrentPlayer(state);
+                if (!onlineSession.color) return '浣犲綋鍓嶆槸瑙傛垬韬唤锛屼笉鑳芥搷浣滄瀛愩€?;
+                if (currentPlayer.color !== onlineSession.color) {
+                    return `杩樻病杞埌浣犮€傚綋鍓嶅洖鍚堟槸${currentPlayer.name}銆俙;
+                }
+            }
+            return '';
+        }
+
+        function renderOnlinePanel() {
+            const room = onlineSession.room;
+            elements.roomCode.textContent = onlineSession.roomId || '----';
+            elements.mySeat.textContent = onlineSession.clientId
+                ? `浣犵殑韬唤锛?{onlineSession.host ? '鎴夸富 路 ' : ''}${colorName(onlineSession.color)}`
+                : '浣犵殑韬唤锛氭湭鍏ュ骇';
+
+            if (!room) {
+                elements.roomPlayers.innerHTML = '';
+                elements.startRoom.disabled = true;
+                elements.closeRoom.disabled = true;
+                elements.closeRoom.textContent = '缁撴潫鎴块棿';
+                return;
+            }
+
+            const expectedCount = getColorsForMode(room.mode).length;
+            const currentCount = room.clients.length;
+            const roomStatusText = room.status === 'waiting'
+                ? `绛夊緟寮€灞€锛?{currentCount}/${expectedCount} 浜篳
+                : room.status === 'finished'
+                    ? '宸茬粨鏉?
+                    : '瀵瑰眬涓?;
+            elements.startRoom.disabled = !onlineSession.host || room.status !== 'waiting' || currentCount < expectedCount;
+            elements.startRoom.textContent = room.status === 'waiting'
+                ? `寮€濮嬪灞€锛?{currentCount}/${expectedCount}锛塦
+                : '寮€濮嬪灞€';
+            elements.closeRoom.disabled = !isInOnlineRoom();
+            elements.closeRoom.textContent = onlineSession.host ? '缁撴潫鎴块棿' : '绂诲紑鎴块棿';
+            elements.roomPlayers.innerHTML = room.clients.map((client) => `
+                <div class="online-player">
+                    <span class="dot" style="background: var(--${client.color || 'ink-soft'});"></span>
+                    <span>${client.name}${client.clientId === onlineSession.clientId ? '锛堜綘锛? : ''}${client.host ? ' 路 鎴夸富' : ''}</span>
+                    <small>${client.connected ? '鍦ㄧ嚎' : '绂荤嚎'} 路 ${colorName(client.color)}</small>
+                </div>
+            `).join('') + `<div class="room-state"><span>鎴块棿鐘舵€?/span><small>${roomStatusText}</small></div>`;
+        }
+
+        function render(state) {
+            const player = getCurrentPlayer(state);
+            elements.boardTitle.textContent = `${state.boardRows} 脳 ${state.boardCols} 妫嬬洏`;
+            elements.gameStatus.textContent = isInOnlineRoom()
+                ? `${state.mode} 浜鸿仈鏈烘埧闂?${onlineSession.roomId} 路 ${onlineSession.room?.status === 'waiting' ? '绛夊緟寮€灞€' : onlineSession.room?.status === 'finished' ? '宸茬粨鏉? : '瀵瑰眬涓?}`
+                : `${state.mode} 浜鸿仈鏈哄噯澶囦腑`;
+            elements.currentPlayerCard.className = `player-card ${player.color}`;
+            elements.currentPlayerName.textContent = player.name;
+            elements.currentPlayerHint.textContent = player.hasPlacedFirstPiece
+                ? '鏈洖鍚堥渶瑕佷笌鍚岃壊妫嬪瓙椤惰鐩歌繛锛屼笖涓嶈兘鍚岃壊杈圭浉閭汇€?
+                : `棣栨灇妫嬪瓙蹇呴』瑕嗙洊璧峰瑙掞細绗?${player.startCorner.row + 1} 琛岋紝绗?${player.startCorner.col + 1} 鍒椼€俙;
+            elements.message.textContent = state.message;
+            document.querySelectorAll('.mode-button').forEach((button) => {
+                button.classList.toggle('active', Number(button.dataset.mode) === state.mode && button.dataset.boardSize === state.boardSize);
+            });
+            elements.selectedRoomMode.textContent = isInOnlineRoom()
+                ? `褰撳墠鎴块棿锛?{state.mode} 浜?路 ${state.boardRows} 脳 ${state.boardCols} 妫嬬洏銆俙
+                : `褰撳墠灏嗗垱寤猴細${state.mode} 浜?路 ${state.boardRows} 脳 ${state.boardCols} 妫嬬洏銆俙;
+            renderBoard(state);
+            renderPieces(state);
+            renderScores(state);
+            renderResult(state);
+            renderLog(state);
+
+            const canAutoSkipRest = state.status === 'playing' && !player.autoSkip && player.remainingPieceIds.length <= 10;
+            elements.autoSkipRest.classList.toggle('hidden', !canAutoSkipRest);
+            if (currentPreviewAnchor && state.status === 'playing') {
+                requestAnimationFrame(() => showBoardPreview(currentPreviewAnchor.row, currentPreviewAnchor.col));
+            }
+            renderOnlinePanel();
+        }
+
+        function hasFirebaseConfig() {
+            return firebaseConfig
+                && firebaseConfig.apiKey
+                && !String(firebaseConfig.apiKey).includes('鏇挎崲')
+                && firebaseConfig.projectId
+                && !String(firebaseConfig.projectId).includes('鏇挎崲');
+        }
+
+        // #region debug-point Z:mobile-room-flow-helper
+        const DEBUG_MOBILE_ROOM_FLOW_PANEL = new URLSearchParams(window.location.search).has('debug');
+        let debugMobileRoomFlowPanel = null;
+        let debugMobileRoomFlowLines = ['[DBG] mobile-room-flow-0628'];
+        let authProbeStarted = false;
+        function ensureDebugMobileRoomFlowPanel() {
+            if (!DEBUG_MOBILE_ROOM_FLOW_PANEL) return null;
+            if (debugMobileRoomFlowPanel) return debugMobileRoomFlowPanel;
+            debugMobileRoomFlowPanel = document.createElement('pre');
+            debugMobileRoomFlowPanel.id = 'mobileRoomFlowDebugPanel';
+            debugMobileRoomFlowPanel.style.position = 'fixed';
+            debugMobileRoomFlowPanel.style.left = '8px';
+            debugMobileRoomFlowPanel.style.right = '8px';
+            debugMobileRoomFlowPanel.style.bottom = '8px';
+            debugMobileRoomFlowPanel.style.zIndex = '9999';
+            debugMobileRoomFlowPanel.style.maxHeight = '55vh';
+            debugMobileRoomFlowPanel.style.overflowY = 'auto';
+            debugMobileRoomFlowPanel.style.margin = '0';
+            debugMobileRoomFlowPanel.style.padding = '8px 10px';
+            debugMobileRoomFlowPanel.style.borderRadius = '10px';
+            debugMobileRoomFlowPanel.style.background = 'rgba(5, 10, 24, 0.92)';
+            debugMobileRoomFlowPanel.style.color = '#9fe7ff';
+            debugMobileRoomFlowPanel.style.font = '12px/1.4 monospace';
+            debugMobileRoomFlowPanel.style.whiteSpace = 'pre-wrap';
+            debugMobileRoomFlowPanel.style.pointerEvents = 'auto';
+            debugMobileRoomFlowPanel.style.touchAction = 'pan-y';
+            debugMobileRoomFlowPanel.style.webkitOverflowScrolling = 'touch';
+            debugMobileRoomFlowPanel.textContent = `${debugMobileRoomFlowLines.join('\n')}\n`;
+            document.body.appendChild(debugMobileRoomFlowPanel);
+            return debugMobileRoomFlowPanel;
+        }
+        function reportMobileRoomFlow(hypothesisId, at, msg, data = {}) {
+            if (!DEBUG_MOBILE_ROOM_FLOW_PANEL) return;
+            const panel = ensureDebugMobileRoomFlowPanel();
+            const payload = Object.entries(data).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' ');
+            debugMobileRoomFlowLines.push(`[${hypothesisId}] ${at} ${msg}${payload ? ` | ${payload}` : ''}`);
+            if (debugMobileRoomFlowLines.length > 120) {
+                debugMobileRoomFlowLines = [debugMobileRoomFlowLines[0], ...debugMobileRoomFlowLines.slice(-119)];
+            }
+            panel.textContent = `${debugMobileRoomFlowLines.join('\n')}\n`;
+            panel.scrollTop = panel.scrollHeight;
+        }
+        async function probeIdentityToolkitReachability(reason = 'unknown') {
+            if (!DEBUG_MOBILE_ROOM_FLOW_PANEL || authProbeStarted || !firebaseConfig?.apiKey) return;
+            authProbeStarted = true;
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(new Error('AUTH_PROBE_TIMEOUT')), 5000);
+            try {
+                reportMobileRoomFlow('E', 'probeIdentityToolkit:start', 'Start direct Identity Toolkit probe', { reason });
+                const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(firebaseConfig.apiKey)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ returnSecureToken: true }),
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                const text = await response.text();
+                let payload = null;
+                try {
+                    payload = text ? JSON.parse(text) : null;
+                } catch {
+                    payload = null;
+                }
+                reportMobileRoomFlow('E', 'probeIdentityToolkit:result', 'Identity Toolkit probe completed', {
+                    reason,
+                    ok: response.ok,
+                    status: response.status,
+                    localId: payload?.localId || '',
+                    errorMessage: payload?.error?.message || ''
+                });
+            } catch (error) {
+                reportMobileRoomFlow('E', 'probeIdentityToolkit:error', 'Identity Toolkit probe failed', {
+                    reason,
+                    message: error?.message || String(error || '')
+                });
+            } finally {
+                window.clearTimeout(timeoutId);
+            }
+        }
+        // #endregion
+
+        function ensureFirebaseReady() {
+            if (!hasFirebaseConfig()) {
+                return Promise.reject(new Error('璇峰厛鍦?firebase/firebase-config.js 濉叆浣犵殑 Firebase Web App 閰嶇疆銆?));
+            }
+            reportMobileRoomFlow('A', 'ensureFirebaseReady:start', 'Enter ensureFirebaseReady', {
+                hasCurrentUser: Boolean(currentUser),
+                hasDb: Boolean(db),
+                hasApp: Boolean(firebaseApp),
+                hasAuthReadyPromise: Boolean(authReadyPromise)
+            });
+            if (currentUser && db) return Promise.resolve(currentUser);
+            if (!authReadyPromise) {
+                firebaseApp = initializeApp(firebaseConfig);
+                db = getFirestore(firebaseApp);
+                auth = getAuth(firebaseApp);
+                reportMobileRoomFlow('A', 'ensureFirebaseReady:init', 'Initialized Firebase app/auth/db');
+                authReadyPromise = new Promise((resolve, reject) => {
+                    let settled = false;
+                    const finish = (handler, value) => {
+                        if (settled) return;
+                        settled = true;
+                        unsubscribe();
+                        handler(value);
+                    };
+                    const unsubscribe = onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            currentUser = user;
+                            reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged', 'Received authenticated user', {
+                                uid: user.uid,
+                                isAnonymous: user.isAnonymous
+                            });
+                            finish(resolve, user);
+                        }
+                    }, (error) => {
+                        reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged:error', 'Auth state listener failed', {
+                            code: error?.code || '',
+                            message: error?.message || ''
+                        });
+                        finish(reject, error);
+                    });
+                    reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:start', 'Call signInAnonymously');
+                    window.setTimeout(() => {
+                        if (!settled) {
+                            reportMobileRoomFlow('A', 'ensureFirebaseReady:observe-timeout', 'Auth still pending after observer timeout');
+                            probeIdentityToolkitReachability('auth-observe-timeout').catch(() => {});
+                        }
+                    }, 8000);
+                    signInAnonymously(auth).catch((error) => {
+                        reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:error', 'Anonymous sign-in failed', {
+                            code: error?.code || '',
+                            message: error?.message || ''
+                        });
+                        finish(reject, error);
+                    });
+                });
+            }
+            return authReadyPromise;
+        }
+
+        function makeRoomId() {
+            const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let id = '';
+            for (let i = 0; i < 4; i += 1) {
+                id += alphabet[Math.floor(Math.random() * alphabet.length)];
+            }
+            return id;
+        }
+
+        function getColorsForMode(mode) {
+            return Number(mode) === 2 ? ['blue', 'yellow'] : ['blue', 'yellow', 'red', 'green'];
+        }
+
+        function timestampToMillis(value) {
+            return value?.toMillis?.() || value || Date.now();
+        }
+
+        function encodeCellsForFirestore(cells) {
+            return cells ? cells.map(([row, col]) => ({ row, col })) : null;
+        }
+
+        function decodeCellsFromFirestore(cells) {
+            return cells ? cells.map((cell) => [cell.row, cell.col]) : null;
+        }
+
+        function encodeGameStateForFirestore(state) {
+            return {
+                ...state,
+                board: state.board.flat(),
+                selectedCells: encodeCellsForFirestore(state.selectedCells)
+            };
+        }
+
+        function decodeGameStateFromFirestore(snapshot) {
+            if (!snapshot) return snapshot;
+            const boardRows = snapshot.boardRows;
+            const boardCols = snapshot.boardCols;
+            const flatBoard = snapshot.board || [];
+            return {
+                ...snapshot,
+                board: Array.from({ length: boardRows }, (_, row) => (
+                    flatBoard.slice(row * boardCols, row * boardCols + boardCols)
+                )),
+                selectedCells: decodeCellsFromFirestore(snapshot.selectedCells)
+            };
+        }
+
+        function publicRoomFromData(roomId, roomData, players = []) {
+            return {
+                roomId,
+                mode: roomData.mode,
+                boardSize: roomData.boardSize,
+                status: roomData.status || 'waiting',
+                createdAt: timestampToMillis(roomData.createdAt),
+                updatedAt: timestampToMillis(roomData.updatedAt),
+                clients: players.map((player) => ({
+                    clientId: player.uid,
+                    name: player.name,
+                    color: player.color,
+                    host: player.host,
+                    connected: player.connected,
+                    lastSeen: timestampToMillis(player.lastSeen)
+                }))
+            };
+        }
+
+        async function loadRoomSession(roomId, uid) {
+            const roomRef = doc(db, 'rooms', roomId);
+            const roomSnap = await getDoc(roomRef);
+            if (!roomSnap.exists()) throw new Error('鎴块棿涓嶅瓨鍦ㄦ垨宸茶繃鏈?);
+
+            const playersSnap = await getDocs(collection(db, 'rooms', roomId, 'players'));
+            const players = playersSnap.docs.map((item) => item.data());
+            const client = players.find((player) => player.uid === uid);
+            if (!client) throw new Error('鏈壘鍒拌鐜╁锛岃閲嶆柊鍔犲叆鎴块棿');
+
+            return {
+                room: publicRoomFromData(roomId, roomSnap.data(), players),
+                client: {
+                    clientId: client.uid,
+                    name: client.name,
+                    color: client.color,
+                    host: client.host,
+                    connected: client.connected,
+                    lastSeen: timestampToMillis(client.lastSeen)
+                },
+                snapshot: decodeGameStateFromFirestore(roomSnap.data().snapshot)
+            };
+        }
+
+        function saveOnlineSession() {
+            if (!onlineSession.roomId || !onlineSession.clientId) return;
+            localStorage.setItem('squareGameFirebaseSession', JSON.stringify({
+                roomId: onlineSession.roomId,
+                clientId: onlineSession.clientId
+            }));
+        }
+
+        function setOnlineSession({ room, client, snapshot }) {
+            onlineSession = {
+                roomId: room.roomId,
+                clientId: client.clientId,
+                color: client.color,
+                host: client.host,
+                room
+            };
+            elements.joinRoomId.value = room.roomId;
+            saveOnlineSession();
+            if (snapshot) {
+                applyingRemoteSnapshot = true;
+                transport.setState(snapshot);
+                applyingRemoteSnapshot = false;
+            }
+            elements.onlineStatus.textContent = `宸茶繘鍏ユ埧闂?${room.roomId}銆?{client.host ? '浣犳槸鎴夸富銆? : '绛夊緟杞埌浣犵殑棰滆壊鍚庢搷浣溿€?}`;
+            renderOnlinePanel();
+            watchRoomData(room.roomId);
+        }
+
+        async function createOnlineRoom() {
+            reportMobileRoomFlow('D', 'createOnlineRoom:start', 'Entered createOnlineRoom', {
+                playerName: elements.playerName.value.trim()
+            });
+            const user = await ensureFirebaseReady();
+            reportMobileRoomFlow('B', 'createOnlineRoom:user-ready', 'User ready for room creation', {
+                uid: user.uid,
+                isAnonymous: user.isAnonymous
+            });
+            const state = {
+                ...transport.getState(),
+                status: 'waiting',
+                message: '鎴块棿宸插垱寤猴紝绛夊緟鐜╁婊″憳鍚庣敱鎴夸富寮€濮嬪灞€銆?
+            };
+            const name = elements.playerName.value.trim() || '鎴夸富';
+
+            for (let attempt = 0; attempt < 8; attempt += 1) {
+                const roomId = makeRoomId();
+                const roomRef = doc(db, 'rooms', roomId);
+                const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
+                const colorSeatRef = doc(db, 'rooms', roomId, 'colorSeats', 'blue');
+
+                try {
+                    reportMobileRoomFlow('B', 'createOnlineRoom:transaction:start', 'Start create room transaction', {
+                        roomId,
+                        attempt
+                    });
+                    await runTransaction(db, async (transaction) => {
+                        const existingRoom = await transaction.get(roomRef);
+                        if (existingRoom.exists()) throw new Error('ROOM_ID_COLLISION');
+
+                        transaction.set(roomRef, {
+                            roomId,
+                            mode: state.mode,
+                            boardSize: state.boardSize,
+                            status: 'waiting',
+                            hostUid: user.uid,
+                            snapshot: encodeGameStateForFirestore(state),
+                            resultSaved: false,
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                        });
+                        transaction.set(colorSeatRef, {
+                            color: 'blue',
+                            uid: user.uid,
+                            occupiedAt: serverTimestamp()
+                        });
+                        transaction.set(playerRef, {
+                            uid: user.uid,
+                            name,
+                            color: 'blue',
+                            host: true,
+                            connected: true,
+                            joinedAt: serverTimestamp(),
+                            lastSeen: serverTimestamp()
+                        });
+                    });
+
+                    reportMobileRoomFlow('B', 'createOnlineRoom:transaction:success', 'Create room transaction committed', {
+                        roomId
+                    });
+                    setOnlineSession(await loadRoomSession(roomId, user.uid));
+                    return;
+                } catch (error) {
+                    reportMobileRoomFlow('B', 'createOnlineRoom:error', 'Create room failed', {
+                        roomId,
+                        attempt,
+                        code: error?.code || '',
+                        message: error?.message || ''
+                    });
+                    if (error.message !== 'ROOM_ID_COLLISION') throw error;
+                }
+            }
+
+            throw new Error('鎴块棿鍙风敓鎴愬け璐ワ紝璇峰啀璇曚竴娆°€?);
+        }
+
+        async function joinOnlineRoom() {
+            reportMobileRoomFlow('D', 'joinOnlineRoom:start', 'Entered joinOnlineRoom', {
+                roomId: elements.joinRoomId.value.trim().toUpperCase(),
+                playerName: elements.playerName.value.trim()
+            });
+            const user = await ensureFirebaseReady();
+            const roomId = elements.joinRoomId.value.trim().toUpperCase();
+            if (!roomId) {
+                elements.onlineStatus.textContent = '璇疯緭鍏ユ埧闂村彿銆?;
+                return;
+            }
+            const name = elements.playerName.value.trim() || '鐜╁';
+
+            await runTransaction(db, async (transaction) => {
+                const roomRef = doc(db, 'rooms', roomId);
+                const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
+                const roomSnap = await transaction.get(roomRef);
+                if (!roomSnap.exists()) throw new Error('鎴块棿涓嶅瓨鍦ㄦ垨宸茶繃鏈?);
+
+                const playerSnap = await transaction.get(playerRef);
+                if (playerSnap.exists()) {
+                    transaction.update(playerRef, {
+                        name,
+                        connected: true,
+                        lastSeen: serverTimestamp()
+                    });
+                    transaction.update(roomRef, { updatedAt: serverTimestamp() });
+                    return;
+                }
+
+                const room = roomSnap.data();
+                if (room.status !== 'waiting') throw new Error('瀵瑰眬宸茬粡寮€濮嬶紝鏆傛椂涓嶈兘鍔犲叆鏂扮帺瀹躲€?);
+                const colors = getColorsForMode(room.mode);
+                const seatRefs = colors.map((color) => doc(db, 'rooms', roomId, 'colorSeats', color));
+                const seatSnaps = [];
+                for (const seatRef of seatRefs) {
+                    seatSnaps.push(await transaction.get(seatRef));
+                }
+                const usedColors = new Set(seatSnaps.filter((snap) => snap.exists()).map((snap) => snap.data().color));
+                const color = colors.find((item) => !usedColors.has(item));
+                if (!color) throw new Error('鎴块棿宸叉弧锛岀涓€鐗堟殏涓嶅紑鏀捐鎴樹綅銆?);
+
+                transaction.set(doc(db, 'rooms', roomId, 'colorSeats', color), {
+                    color,
+                    uid: user.uid,
+                    occupiedAt: serverTimestamp()
+                });
+                transaction.set(playerRef, {
+                    uid: user.uid,
+                    name,
+                    color,
+                    host: false,
+                    connected: true,
+                    joinedAt: serverTimestamp(),
+                    lastSeen: serverTimestamp()
+                });
+            });
+
+            setOnlineSession(await loadRoomSession(roomId, user.uid));
+        }
+
+        async function startOnlineRoom() {
+            if (!isInOnlineRoom()) throw new Error('璇峰厛鍒涘缓鎴栧姞鍏ユ埧闂淬€?);
+            if (!onlineSession.host) {
+                window.alert('鍙湁鎴夸富鍙互寮€濮嬪灞€銆?);
+                return;
+            }
+            const room = onlineSession.room;
+            const expectedCount = getColorsForMode(room.mode).length;
+            if ((room.clients?.length || 0) < expectedCount) {
+                window.alert(`褰撳墠浜烘暟涓嶈冻锛?{room.mode} 浜烘埧闂撮渶瑕佹弧 ${expectedCount} 浜哄悗鎵嶈兘寮€濮嬨€俙);
+                return;
+            }
+            const nextState = {
+                ...transport.getState(),
+                status: 'playing',
+                message: '瀵瑰眬寮€濮嬨€傝摑鑹茬帺瀹跺厛钀藉瓙銆?
+            };
+            await updateDoc(doc(db, 'rooms', onlineSession.roomId), {
+                status: 'playing',
+                snapshot: encodeGameStateForFirestore(nextState),
+                updatedAt: serverTimestamp()
+            });
+        }
+
+        function resetOnlineSessionLocally(message = '宸茬寮€鎴块棿锛屽彲浠ラ噸鏂伴€夋嫨妫嬪眬骞跺垱寤烘柊鎴块棿銆?) {
+            roomUnsubscribes.forEach((unsubscribe) => unsubscribe());
+            roomUnsubscribes = [];
+            localStorage.removeItem('squareGameFirebaseSession');
+            const currentState = transport.getState();
+            onlineSession = {
+                roomId: null,
+                clientId: null,
+                color: null,
+                host: false,
+                room: null
+            };
+            applyingRemoteSnapshot = true;
+            transport.setState(createInitialState(currentState.mode, currentState.boardSize));
+            applyingRemoteSnapshot = false;
+            elements.joinRoomId.value = '';
+            elements.onlineStatus.textContent = message;
+            renderOnlinePanel();
+        }
+
+        async function closeOrLeaveOnlineRoom() {
+            if (!isInOnlineRoom()) {
+                window.alert('褰撳墠娌℃湁鍙粨鏉熺殑鎴块棿銆?);
+                return;
+            }
+
+            const roomId = onlineSession.roomId;
+            const clientId = onlineSession.clientId;
+            if (onlineSession.host) {
+                if (!window.confirm('纭畾瑕佺粨鏉熸暣涓埧闂村悧锛熺粨鏉熷悗鎵€鏈夌帺瀹堕兘闇€瑕侀噸鏂板垱寤烘垨鍔犲叆鏂版埧闂淬€?)) return;
+                await updateDoc(doc(db, 'rooms', roomId), {
+                    status: 'closed',
+                    updatedAt: serverTimestamp()
+                });
+                resetOnlineSessionLocally('鎴块棿宸茬粨鏉熴€傜幇鍦ㄥ彲浠ラ噸鏂伴€夋嫨妫嬪眬骞跺垱寤烘柊鎴块棿銆?);
+                return;
+            }
+
+            if (!window.confirm('纭畾瑕佺寮€褰撳墠鎴块棿鍚楋紵')) return;
+            await setDoc(doc(db, 'rooms', roomId, 'players', clientId), {
+                connected: false,
+                lastSeen: serverTimestamp()
+            }, { merge: true });
+            resetOnlineSessionLocally('宸茬寮€鎴块棿銆傜幇鍦ㄥ彲浠ラ噸鏂伴€夋嫨妫嬪眬骞跺姞鍏ユ垨鍒涘缓鎴块棿銆?);
+        }
+
+        async function reconnectOnlineRoom(showMissing = true) {
+            const user = await ensureFirebaseReady();
+            const saved = JSON.parse(localStorage.getItem('squareGameFirebaseSession') || 'null');
+            if (!saved?.roomId || !saved?.clientId) {
+                if (showMissing) elements.onlineStatus.textContent = '娌℃湁鍙噸杩炵殑鎴块棿璁板綍銆?;
+                return;
+            }
+            if (saved.clientId !== user.uid) {
+                localStorage.removeItem('squareGameFirebaseSession');
+                throw new Error('鍖垮悕韬唤宸插彉鍖栵紝璇烽噸鏂板姞鍏ユ埧闂淬€?);
+            }
+            await setDoc(doc(db, 'rooms', saved.roomId, 'players', user.uid), {
+                connected: true,
+                lastSeen: serverTimestamp()
+            }, { merge: true });
+            setOnlineSession(await loadRoomSession(saved.roomId, user.uid));
+        }
+
+        function watchRoomData(roomId) {
+            roomUnsubscribes.forEach((unsubscribe) => unsubscribe());
+            roomUnsubscribes = [];
+            if (!onlineSession.roomId || !onlineSession.clientId) return;
+
+            const roomRef = doc(db, 'rooms', roomId);
+            const playersRef = collection(db, 'rooms', roomId, 'players');
+
+            roomUnsubscribes.push(onSnapshot(roomRef, (roomSnap) => {
+                if (!roomSnap.exists()) {
+                    elements.onlineStatus.textContent = '鎴块棿涓嶅瓨鍦ㄦ垨宸茶鍒犻櫎銆?;
+                    return;
+                }
+                const roomData = roomSnap.data();
+                if (roomData.status === 'closed') {
+                    resetOnlineSessionLocally('鎴块棿宸茶鎴夸富缁撴潫銆傜幇鍦ㄥ彲浠ラ噸鏂伴€夋嫨妫嬪眬骞跺垱寤烘垨鍔犲叆鏂版埧闂淬€?);
+                    return;
+                }
+                onlineSession.room = publicRoomFromData(roomId, roomData, onlineSession.room?.clients || []);
+                if (roomData.snapshot) {
+                    applyingRemoteSnapshot = true;
+                    transport.setState(decodeGameStateFromFirestore(roomData.snapshot));
+                    applyingRemoteSnapshot = false;
+                    elements.onlineStatus.textContent = `宸插悓姝ユ埧闂?${onlineSession.roomId} 鐨勬渶鏂板灞€銆俙;
+                }
+                renderOnlinePanel();
+            }, (error) => {
+                elements.onlineStatus.textContent = `鎴块棿鐩戝惉澶辫触锛?{error.message}`;
+            }));
+
+            roomUnsubscribes.push(onSnapshot(playersRef, (playersSnap) => {
+                const players = playersSnap.docs.map((item) => item.data());
+                const roomData = onlineSession.room || { roomId, mode: transport.getState().mode, boardSize: transport.getState().boardSize };
+                onlineSession.room = publicRoomFromData(roomId, roomData, players);
+                const me = players.find((player) => player.uid === onlineSession.clientId);
+                if (me) {
+                    onlineSession.color = me.color;
+                    onlineSession.host = me.host;
+                }
+                renderOnlinePanel();
+            }, (error) => {
+                elements.onlineStatus.textContent = `鐜╁鍒楄〃鐩戝惉澶辫触锛?{error.message}`;
+            }));
+        }
+
+        async function persistFinishedGame(previousState, nextState) {
+            if (previousState.status === 'finished' || nextState.status !== 'finished') return;
+            const roomId = onlineSession.roomId;
+            const finalRef = doc(db, 'rooms', roomId, 'results', 'final');
+            const scores = nextState.players.map((player) => ({
+                color: player.color,
+                remaining: player.remainingPieceIds.reduce((sum, pieceId) => sum + pieceSize(pieceId), 0),
+                winner: nextState.winnerIds.includes(player.id)
+            }));
+
+            await runTransaction(db, async (transaction) => {
+                const finalSnap = await transaction.get(finalRef);
+                if (finalSnap.exists()) return;
+
+                transaction.set(finalRef, {
+                    roomId,
+                    scores,
+                    winnerIds: nextState.winnerIds,
+                    finishedAt: serverTimestamp()
+                });
+
+                for (const client of onlineSession.room?.clients || []) {
+                    if (!client.color) continue;
+                    const score = scores.find((item) => item.color === client.color);
+                    if (!score) continue;
+                    transaction.set(doc(db, 'rankings', client.clientId), {
+                        uid: client.clientId,
+                        name: client.name,
+                        games: increment(1),
+                        wins: increment(score.winner ? 1 : 0),
+                        remainingTotal: increment(score.remaining),
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                }
+            });
+        }
+
+        function syncOnlineSnapshot(action, previousState, nextState) {
+            const syncActions = new Set(['START_GAME', 'RESET_GAME', 'END_GAME', 'SELECT_PIECE', 'ROTATE_PIECE', 'FLIP_PIECE', 'PLACE_PIECE', 'PASS_TURN', 'AUTO_SKIP_REST']);
+            if (applyingRemoteSnapshot || !isInOnlineRoom() || !syncActions.has(action.type) || previousState === nextState) return;
+
+            const roomRef = doc(db, 'rooms', onlineSession.roomId);
+            updateDoc(roomRef, {
+                snapshot: encodeGameStateForFirestore(nextState),
+                mode: nextState.mode,
+                boardSize: nextState.boardSize,
+                status: nextState.status === 'finished' ? 'finished' : 'playing',
+                lastActionType: action.type,
+                lastActionBy: onlineSession.clientId,
+                updatedAt: serverTimestamp()
+            }).then(() => {
+                return persistFinishedGame(previousState, nextState);
+            }).catch((error) => {
+                elements.onlineStatus.textContent = error.message;
+            });
+        }
+
+        document.querySelectorAll('.mode-button').forEach((button) => {
+            button.addEventListener('click', () => {
+                transport.dispatch({
+                    type: 'START_GAME',
+                    mode: Number(button.dataset.mode),
+                    boardSize: button.dataset.boardSize
+                });
+            });
+        });
+
+        function confirmAction(message, action) {
+            const blockMessage = getOnlineBlockMessage(action, transport.getState());
+            if (blockMessage) {
+                window.alert(blockMessage);
+                return;
+            }
+            if (window.confirm(message)) {
+                transport.dispatch(action);
+            }
+        }
+
+        document.getElementById('resetGame').addEventListener('click', () => {
+            confirmAction('纭畾瑕侀噸鏂板紑濮嬫湰灞€鍚楋紵褰撳墠妫嬬洏鍜屽洖鍚堣褰曚細琚竻绌恒€?, { type: 'RESET_GAME' });
+        });
+        document.getElementById('restartRound').addEventListener('click', () => {
+            confirmAction('纭畾瑕侀噸鏂板紑濮嬫湰灞€鍚楋紵褰撳墠妫嬬洏鍜屽洖鍚堣褰曚細琚竻绌恒€?, { type: 'RESET_GAME' });
+        });
+        document.getElementById('endGame').addEventListener('click', () => {
+            confirmAction('纭畾瑕佹墜鍔ㄧ粨鏉熸父鎴忓苟绔嬪嵆缁撶畻鍚楋紵', { type: 'END_GAME' });
+        });
+        document.getElementById('rotateLeft').addEventListener('click', () => transport.dispatch({ type: 'ROTATE_PIECE', direction: 'left' }));
+        document.getElementById('rotateRight').addEventListener('click', () => transport.dispatch({ type: 'ROTATE_PIECE', direction: 'right' }));
+        document.getElementById('flipPiece').addEventListener('click', () => transport.dispatch({ type: 'FLIP_PIECE' }));
+        document.getElementById('passTurn').addEventListener('click', () => transport.dispatch({ type: 'PASS_TURN' }));
+        elements.autoSkipRest.addEventListener('click', () => {
+            confirmAction('纭畾璁剧疆褰撳墠鐜╁涔嬪悗鍧囪嚜鍔ㄨ烦杩囧悧锛熻缃悗鏈眬鍚庣画鍥炲悎浼氳嚜鍔ㄨ烦杩囪鐜╁銆?, { type: 'AUTO_SKIP_REST' });
+        });
+        elements.bgmSelect.addEventListener('change', () => {
+            setBgmTrack(elements.bgmSelect.value);
+        });
+        elements.bgmToggle.addEventListener('click', () => {
+            if (elements.bgmPlayer.paused) {
+                playBgm();
+            } else {
+                pauseBgm();
+            }
+        });
+        elements.bgmPlayer.addEventListener('playing', () => {
+            updateBgmControls(`${getSelectedBgm().label} 路 鎾斁涓璥);
+        });
+        elements.bgmPlayer.addEventListener('error', () => {
+            updateBgmControls(`${getSelectedBgm().label} 路 闊抽鍔犺浇澶辫触`, true);
+        });
+        elements.createRoom.addEventListener('click', () => {
+            reportMobileRoomFlow('D', 'createRoom:click', 'Create room button clicked', {
+                text: elements.createRoom.textContent,
+                disabled: elements.createRoom.disabled
+            });
+            createOnlineRoom().catch((error) => {
+                reportMobileRoomFlow('E', 'createRoom:click:catch', 'Create room click handler caught error', {
+                    code: error?.code || '',
+                    message: error?.message || ''
+                });
+                elements.onlineStatus.textContent = error.message;
+            });
+        });
+        elements.joinRoom.addEventListener('click', () => {
+            reportMobileRoomFlow('D', 'joinRoom:click', 'Join room button clicked', {
+                text: elements.joinRoom.textContent,
+                disabled: elements.joinRoom.disabled
+            });
+            joinOnlineRoom().catch((error) => {
+                reportMobileRoomFlow('E', 'joinRoom:click:catch', 'Join room click handler caught error', {
+                    code: error?.code || '',
+                    message: error?.message || ''
+                });
+                elements.onlineStatus.textContent = error.message;
+            });
+        });
+        elements.startRoom.addEventListener('click', () => {
+            startOnlineRoom().catch((error) => {
+                elements.onlineStatus.textContent = error.message;
+            });
+        });
+        elements.closeRoom.addEventListener('click', () => {
+            closeOrLeaveOnlineRoom().catch((error) => {
+                elements.onlineStatus.textContent = error.message;
+            });
+        });
+        elements.reconnectRoom.addEventListener('click', () => {
+            reconnectOnlineRoom(true).catch((error) => {
+                elements.onlineStatus.textContent = error.message;
+            });
+        });
+        elements.copyRoomCode.addEventListener('click', async () => {
+            if (!onlineSession.roomId) {
+                elements.onlineStatus.textContent = '褰撳墠杩樻病鏈夋埧闂村彿銆?;
+                return;
+            }
+            await navigator.clipboard?.writeText(onlineSession.roomId);
+            elements.onlineStatus.textContent = `鎴块棿鍙?${onlineSession.roomId} 宸插鍒躲€俙;
+        });
+        elements.victoryClose.addEventListener('click', dismissVictoryModal);
+        elements.victoryViewBoard.addEventListener('click', dismissVictoryModal);
+        elements.victoryModal.addEventListener('click', (event) => {
+            if (event.target === elements.victoryModal || event.target.classList.contains('victory-backdrop')) {
+                dismissVictoryModal();
+            }
+        });
+
+        function getBoardCellFromEvent(event) {
+            const cell = event.target.closest?.('.board-cell');
+            if (!cell || !elements.board.contains(cell)) return null;
+            return {
+                row: Number(cell.dataset.row),
+                col: Number(cell.dataset.col)
+            };
+        }
+
+        function getBoardCellFromPoint(x, y) {
+            const element = document.elementFromPoint(x, y);
+            const cell = element?.closest?.('.board-cell');
+            if (!cell || !elements.board.contains(cell)) return null;
+            return {
+                row: Number(cell.dataset.row),
+                col: Number(cell.dataset.col)
+            };
+        }
+
+        function clearBoardPreview() {
+            elements.board.querySelectorAll('.board-cell.preview').forEach((cell) => {
+                cell.classList.remove('preview', 'invalid');
+                if (cell.dataset.previewColor) {
+                    cell.classList.remove(cell.dataset.previewColor);
+                    delete cell.dataset.previewColor;
+                }
+            });
+            currentPreviewAnchor = null;
+        }
+
+        function findBoardCell(row, col) {
+            return elements.board.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`);
+        }
+
+        function showBoardPreview(row, col) {
+            clearBoardPreview();
+            const state = transport.getState();
+            if (!state.selectedCells || state.status === 'finished') return;
+            currentPreviewAnchor = { row, col };
+
+            const player = getCurrentPlayer(state);
+            const validation = validatePlacement(state, player, state.selectedCells, row, col);
+            const absoluteCells = getAbsoluteCells(state.selectedCells, row, col);
+
+            absoluteCells.forEach(([cellRow, cellCol]) => {
+                const cell = findBoardCell(cellRow, cellCol);
+                if (!cell) return;
+                cell.classList.add('preview');
+                if (!validation.ok) cell.classList.add('invalid');
+                if (!cell.classList.contains('filled')) {
+                    cell.classList.add(player.color);
+                    cell.dataset.previewColor = player.color;
+                }
+            });
+        }
+
+        elements.board.addEventListener('mousemove', (event) => {
+            const cell = getBoardCellFromEvent(event);
+            if (!cell) return;
+            showBoardPreview(cell.row, cell.col);
+        });
+
+        elements.board.addEventListener('focusin', (event) => {
+            const cell = getBoardCellFromEvent(event);
+            if (!cell) return;
+            showBoardPreview(cell.row, cell.col);
+        });
+
+        elements.board.addEventListener('mouseleave', clearBoardPreview);
+
+        elements.board.addEventListener('click', (event) => {
+            if (suppressNextBoardClick) {
+                suppressNextBoardClick = false;
+                return;
+            }
+            const cell = getBoardCellFromEvent(event);
+            if (!cell) return;
+            transport.dispatch({ type: 'PLACE_PIECE', row: cell.row, col: cell.col });
+        });
+
+        elements.board.addEventListener('touchend', (event) => {
+            const touch = event.changedTouches[0];
+            if (!touch) return;
+
+            const state = transport.getState();
+            if (!state.selectedCells || state.status !== 'playing') return;
+
+            const cell = getBoardCellFromPoint(touch.clientX, touch.clientY);
+            if (!cell) return;
+
+            event.preventDefault();
+            suppressNextBoardClick = true;
+
+            const isSamePreview = currentPreviewAnchor?.row === cell.row && currentPreviewAnchor?.col === cell.col;
+            if (isSamePreview) {
+                transport.dispatch({ type: 'PLACE_PIECE', row: cell.row, col: cell.col });
+                return;
+            }
+
+            showBoardPreview(cell.row, cell.col);
+            transport.dispatch({
+                type: 'SET_MESSAGE',
+                message: '宸叉樉绀洪瑙堛€傛墜鏈虹璇峰啀娆＄偣鍑诲悓涓€浣嶇疆纭钀藉瓙銆?
+            });
+        }, { passive: false });
+
+        elements.board.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            const cell = getBoardCellFromEvent(event);
+            if (!cell) return;
+            event.preventDefault();
+            transport.dispatch({ type: 'PLACE_PIECE', row: cell.row, col: cell.col });
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !elements.victoryModal.classList.contains('hidden')) {
+                event.preventDefault();
+                dismissVictoryModal();
+                return;
+            }
+
+            const interactiveTags = ['BUTTON', 'A', 'INPUT', 'TEXTAREA', 'SELECT'];
+            const isInteractiveTarget = interactiveTags.includes(event.target.tagName);
+
+            const state = transport.getState();
+            if (state.status !== 'playing') return;
+
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                transport.dispatch({ type: 'ROTATE_PIECE', direction: 'left' });
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                transport.dispatch({ type: 'ROTATE_PIECE', direction: 'right' });
+            } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                event.preventDefault();
+                transport.dispatch({ type: 'FLIP_PIECE' });
+            } else if (event.key === 'Enter' && currentPreviewAnchor && !isInteractiveTarget) {
+                event.preventDefault();
+                transport.dispatch({ type: 'PLACE_PIECE', row: currentPreviewAnchor.row, col: currentPreviewAnchor.col });
+            }
+        });
+
+        elements.bgmPlayer.volume = 0.38;
+        setBgmTrack(DEFAULT_BGM_ID, false);
+        playBgm();
+
+        transport.subscribe(render);
+        if (!hasFirebaseConfig()) {
+            elements.onlineStatus.textContent = '璇峰厛澶嶅埗 firebase/firebase-config.example.js 涓?firebase/firebase-config.js锛屽苟濉叆 Firebase Web App 閰嶇疆銆?;
+        }
+        reportMobileRoomFlow('A', 'startup:autoReconnect', 'Attempt automatic reconnect on startup');
+        reconnectOnlineRoom(false).catch(() => {
+            reportMobileRoomFlow('E', 'startup:autoReconnect:catch', 'Automatic reconnect failed');
+            localStorage.removeItem('squareGameFirebaseSession');
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (!db || !onlineSession.roomId || !onlineSession.clientId) return;
+            setDoc(doc(db, 'rooms', onlineSession.roomId, 'players', onlineSession.clientId), {
+                connected: false,
+                lastSeen: serverTimestamp()
+            }, { merge: true }).catch(() => {});
+        });
+
+        window.__squareGameDebug = {
+            PIECES,
+            dispatch: transport.dispatch,
+            onlineSession: () => onlineSession,
+            getState: transport.getState,
+            validatePlacement,
+            getUniqueVariants
+        };
+    </script>
+</body>
+</html>
