@@ -23,7 +23,9 @@
 - 同一张手机截图里 `ensureFirebaseReady:start` 显示 `hasCurrentUser=false hasDb=true hasApp=true hasAuthReadyPromise=true`，且后续没有出现 `A:onAuthStateChanged` 或 `B:createOnlineRoom:transaction:start`，说明链路卡在复用旧的 `authReadyPromise`。
 - 网页版截图显示完整路径：`A:ensureFirebaseReady:init -> A:onAuthStateChanged -> B:createOnlineRoom:transaction:success -> C:loadRoomSession:success`，说明房间事务和读取逻辑本身正常，排除 B/C。
 - 代码证据：页面底部存在启动即执行的 `reconnectOnlineRoom(false)`，它会在用户手动点击前调用 `ensureFirebaseReady()`。
+- 新一轮手机截图表明：即使跳过了移动端自动重连，手动点击后的首次 `ensureFirebaseReady()` 仍可能挂住，因此根因不止是自动重连，还包括移动端匿名登录 promise 本身可能长期不 resolve。
 
 ## Verification Conclusion
 - 根因：真手机环境里，页面加载时自动执行的 `reconnectOnlineRoom(false)` 先触发了 `ensureFirebaseReady()`；该次匿名登录在移动端未完成，留下一个未 resolve 的 `authReadyPromise`。后续手动“创建房间/加入房间”再次调用 `ensureFirebaseReady()` 时复用了这个悬挂 promise，导致链路卡死，永远到不了创建事务阶段。
 - 最小修复：在真手机环境禁用“页面加载即自动重连”，只保留用户手动点击“重连上次房间”时再触发；这样不会预先污染 `authReadyPromise`，并且不影响桌面端当前正常行为。
+- 追加修复：`ensureFirebaseReady()` 现在不再只等待 `onAuthStateChanged`，还会直接接受 `signInAnonymously()` 的成功结果；同时对悬挂的 Auth 初始化增加超时重置和一次自动重试，避免第一次点击留下死 promise 后后续所有点击都被卡住。

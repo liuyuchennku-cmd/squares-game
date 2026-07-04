@@ -2977,6 +2977,7 @@
         let auth = null;
         let currentUser = null;
         let authReadyPromise = null;
+        let authReadyStartedAt = 0;
         let onlineSession = {
             roomId: null,
             clientId: null,
@@ -3955,41 +3956,61 @@
                 && !String(firebaseConfig.projectId).includes('替换');
         }
 
-        function ensureFirebaseReady() {
+        async function ensureFirebaseReady(retryCount = 0) {
             if (!hasFirebaseConfig()) {
-                return Promise.reject(new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。'));
+                throw new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。');
             }
             // #region debug-point A:ensure-start
             reportMobileRoomFlow('A', 'ensureFirebaseReady:start', 'Enter ensureFirebaseReady', {
                 hasCurrentUser: Boolean(currentUser),
                 hasDb: Boolean(db),
                 hasApp: Boolean(firebaseApp),
-                hasAuthReadyPromise: Boolean(authReadyPromise)
+                hasAuthReadyPromise: Boolean(authReadyPromise),
+                retryCount
             });
             // #endregion
-            if (currentUser && db) return Promise.resolve(currentUser);
+            if (currentUser && db) return currentUser;
+            if (!firebaseApp) {
+                firebaseApp = initializeApp(firebaseConfig);
+                db = getFirestore(firebaseApp);
+                auth = getAuth(firebaseApp);
+                // #region debug-point A:app-init
+                reportMobileRoomFlow('A', 'ensureFirebaseReady:init', 'Initialized Firebase app/auth/db');
+                // #endregion
+            }
+            const authPromiseStale = authReadyPromise && !currentUser && authReadyStartedAt && (Date.now() - authReadyStartedAt > 5000);
+            if (authPromiseStale) {
+                // #region debug-point A:stale-promise-reset
+                reportMobileRoomFlow('A', 'ensureFirebaseReady:stale-reset', 'Reset stale authReadyPromise before retry', {
+                    ageMs: Date.now() - authReadyStartedAt
+                });
+                // #endregion
+                authReadyPromise = null;
+                authReadyStartedAt = 0;
+            }
             if (!authReadyPromise) {
-                if (!firebaseApp) {
-                    firebaseApp = initializeApp(firebaseConfig);
-                    db = getFirestore(firebaseApp);
-                    auth = getAuth(firebaseApp);
-                    // #region debug-point A:app-init
-                    reportMobileRoomFlow('A', 'ensureFirebaseReady:init', 'Initialized Firebase app/auth/db');
-                    // #endregion
-                }
+                authReadyStartedAt = Date.now();
                 authReadyPromise = new Promise((resolve, reject) => {
-                    const unsubscribe = onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            currentUser = user;
-                            // #region debug-point A:auth-success
-                            reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged', 'Received authenticated user', {
-                                uid: user.uid,
-                                isAnonymous: user.isAnonymous
-                            });
-                            // #endregion
-                            unsubscribe();
-                            resolve(user);
-                        }
+                    let settled = false;
+                    let timeoutId = 0;
+                    let unsubscribe = () => {};
+                    const finish = (handler, value) => {
+                        if (settled) return;
+                        settled = true;
+                        window.clearTimeout(timeoutId);
+                        unsubscribe();
+                        handler(value);
+                    };
+                    unsubscribe = onAuthStateChanged(auth, (user) => {
+                        if (!user) return;
+                        currentUser = user;
+                        // #region debug-point A:auth-success
+                        reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged', 'Received authenticated user', {
+                            uid: user.uid,
+                            isAnonymous: user.isAnonymous
+                        });
+                        // #endregion
+                        finish(resolve, user);
                     }, (error) => {
                         // #region debug-point A:auth-listener-error
                         reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged:error', 'Auth state listener failed', {
@@ -3997,21 +4018,54 @@
                             message: error?.message || ''
                         });
                         // #endregion
-                        reject(error);
+                        finish(reject, error);
                     });
-                    signInAnonymously(auth).catch((error) => {
+                    timeoutId = window.setTimeout(() => {
+                        // #region debug-point A:auth-timeout
+                        reportMobileRoomFlow('A', 'ensureFirebaseReady:timeout', 'Auth readiness timed out', {
+                            elapsedMs: Date.now() - authReadyStartedAt
+                        });
+                        // #endregion
+                        finish(reject, new Error('AUTH_READY_TIMEOUT'));
+                    }, 5000);
+                    signInAnonymously(auth).then((credential) => {
+                        currentUser = credential.user;
+                        // #region debug-point A:sign-in-success
+                        reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:success', 'Anonymous sign-in promise resolved', {
+                            uid: credential.user?.uid || '',
+                            isAnonymous: credential.user?.isAnonymous ?? true
+                        });
+                        // #endregion
+                        finish(resolve, credential.user);
+                    }).catch((error) => {
                         // #region debug-point A:sign-in-error
                         reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:error', 'Anonymous sign-in failed', {
                             code: error?.code || '',
                             message: error?.message || ''
                         });
                         // #endregion
-                        unsubscribe();
-                        reject(error);
+                        finish(reject, error);
                     });
                 });
             }
-            return authReadyPromise;
+            try {
+                const user = await authReadyPromise;
+                authReadyStartedAt = 0;
+                return user;
+            } catch (error) {
+                authReadyPromise = null;
+                authReadyStartedAt = 0;
+                if (retryCount < 1) {
+                    // #region debug-point A:retry
+                    reportMobileRoomFlow('A', 'ensureFirebaseReady:retry', 'Retry auth readiness after failure', {
+                        message: error?.message || '',
+                        retryCount
+                    });
+                    // #endregion
+                    return ensureFirebaseReady(retryCount + 1);
+                }
+                throw error;
+            }
         }
         function makeRoomId() {
             const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
