@@ -2446,8 +2446,6 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
         import {
             getAuth,
-            inMemoryPersistence,
-            initializeAuth,
             onAuthStateChanged,
             signInAnonymously
         } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
@@ -2979,7 +2977,6 @@
         let auth = null;
         let currentUser = null;
         let authReadyPromise = null;
-        let authReadyStartedAt = 0;
         let onlineSession = {
             roomId: null,
             clientId: null,
@@ -3066,154 +3063,72 @@
             }
         }
 
-        // #region debug-point Z:mobile-room-flow-helper
-        const DEBUG_MOBILE_ROOM_FLOW_URL = 'http://192.168.1.124:7777/event';
-        const DEBUG_MOBILE_ROOM_FLOW_SESSION = 'mobile-room-flow';
-        const DEBUG_MOBILE_ROOM_FLOW_PANEL = new URLSearchParams(window.location.search).has('debug');
-        let debugMobileRoomFlowPanel = null;
-        let debugMobileRoomFlowLines = ['[DBG] mobile-room-flow'];
-        let authProbeStarted = false;
-        function isLikelyMobileBrowser() {
-            if (navigator.userAgentData?.mobile) return true;
-            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        function setOnlineProgress(message) {
+            elements.onlineStatus.textContent = message;
         }
-        function ensureDebugMobileRoomFlowPanel() {
-            if (!DEBUG_MOBILE_ROOM_FLOW_PANEL) return null;
-            if (debugMobileRoomFlowPanel) return debugMobileRoomFlowPanel;
-            debugMobileRoomFlowPanel = document.createElement('pre');
-            debugMobileRoomFlowPanel.id = 'mobileRoomFlowDebugPanel';
-            debugMobileRoomFlowPanel.style.position = 'fixed';
-            debugMobileRoomFlowPanel.style.left = '8px';
-            debugMobileRoomFlowPanel.style.right = '8px';
-            debugMobileRoomFlowPanel.style.bottom = '8px';
-            debugMobileRoomFlowPanel.style.zIndex = '9999';
-            debugMobileRoomFlowPanel.style.maxHeight = '55vh';
-            debugMobileRoomFlowPanel.style.overflowY = 'auto';
-            debugMobileRoomFlowPanel.style.margin = '0';
-            debugMobileRoomFlowPanel.style.padding = '8px 10px';
-            debugMobileRoomFlowPanel.style.borderRadius = '10px';
-            debugMobileRoomFlowPanel.style.background = 'rgba(5, 10, 24, 0.92)';
-            debugMobileRoomFlowPanel.style.color = '#9fe7ff';
-            debugMobileRoomFlowPanel.style.font = '12px/1.4 monospace';
-            debugMobileRoomFlowPanel.style.whiteSpace = 'pre-wrap';
-            debugMobileRoomFlowPanel.style.pointerEvents = 'auto';
-            debugMobileRoomFlowPanel.style.touchAction = 'pan-y';
-            debugMobileRoomFlowPanel.style.webkitOverflowScrolling = 'touch';
-            debugMobileRoomFlowPanel.textContent = `${debugMobileRoomFlowLines.join('\n')}\n`;
-            document.body.appendChild(debugMobileRoomFlowPanel);
-            return debugMobileRoomFlowPanel;
-        }
-        function reportMobileRoomFlow(hypothesisId, at, msg, data = {}) {
-            if (DEBUG_MOBILE_ROOM_FLOW_PANEL) {
-                const panel = ensureDebugMobileRoomFlowPanel();
-                const payload = Object.entries(data).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' ');
-                debugMobileRoomFlowLines.push(`[${hypothesisId}] ${at} ${msg}${payload ? ` | ${payload}` : ''}`);
-                if (debugMobileRoomFlowLines.length > 120) {
-                    debugMobileRoomFlowLines = [debugMobileRoomFlowLines[0], ...debugMobileRoomFlowLines.slice(-119)];
-                }
-                panel.textContent = `${debugMobileRoomFlowLines.join('\n')}\n`;
-                panel.scrollTop = panel.scrollHeight;
+
+        function getFirebaseTimeoutMessage() {
+            const host = location.hostname;
+            if (host && host !== 'localhost' && host !== '127.0.0.1') {
+                return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u786e\u8ba4 Firebase Authentication \u7684 Authorized domains \u5df2\u52a0\u5165 ' + host + '\uff0c\u7136\u540e\u5237\u65b0\u91cd\u8bd5\u3002';
             }
-            fetch(DEBUG_MOBILE_ROOM_FLOW_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: DEBUG_MOBILE_ROOM_FLOW_SESSION,
-                    runId: 'pre-fix',
-                    hypothesisId,
-                    location: at,
-                    msg: `[DEBUG] ${msg}`,
-                    data: {
-                        href: window.location.href,
-                        width: window.innerWidth,
-                        height: window.innerHeight,
-                        userAgent: navigator.userAgent,
-                        ...data
-                    },
-                    ts: Date.now()
+            return '\u8fde\u63a5 Firebase \u8d85\u65f6\u3002\u8bf7\u68c0\u67e5\u7f51\u7edc\uff0c\u6216\u7a0d\u540e\u91cd\u8bd5\u3002';
+        }
+
+        function withTimeout(promise, ms, message) {
+            let timeoutId = 0;
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => {
+                    timeoutId = window.setTimeout(() => reject(new Error(message)), ms);
                 })
-            }).catch(() => {});
+            ]).finally(() => window.clearTimeout(timeoutId));
         }
-        window.addEventListener('error', (event) => {
-            reportMobileRoomFlow('E', 'window:error', 'Unhandled window error', {
-                message: event.message,
-                filename: event.filename,
-                lineno: event.lineno,
-                colno: event.colno
-            });
-        });
-        window.addEventListener('unhandledrejection', (event) => {
-            reportMobileRoomFlow('E', 'window:unhandledrejection', 'Unhandled promise rejection', {
-                reason: String(event.reason?.message || event.reason || '')
-            });
-        });
 
-        function createFirebaseAuth(app) {
-            if (isLikelyMobileBrowser()) {
-                try {
-                    // #region debug-point A:auth-mode-mobile
-                    reportMobileRoomFlow('A', 'createFirebaseAuth', 'Use initializeAuth with in-memory persistence on mobile');
-                    // #endregion
-                    return initializeAuth(app, { persistence: inMemoryPersistence });
-                } catch (error) {
-                    // #region debug-point A:auth-mode-mobile-fallback
-                    reportMobileRoomFlow('A', 'createFirebaseAuth:fallback', 'Fallback to getAuth after initializeAuth failure', {
-                        message: error?.message || ''
-                    });
-                    // #endregion
-                    return getAuth(app);
-                }
+        function getFriendlyOnlineError(error, fallbackMessage) {
+            const code = error?.code || '';
+            if (code.includes('permission-denied')) {
+                return 'Firebase 拒绝了房间操作。请检查 Firestore 安全规则是否已部署。';
             }
-            return getAuth(app);
+            if (code.includes('unavailable') || code.includes('network-request-failed')) {
+                return '暂时无法连接 Firebase。请检查手机网络后重试。';
+            }
+            if (code.includes('unauthorized-domain')) {
+                return `当前域名 ${location.hostname || '本地文件'} 未加入 Firebase Authorized domains。`;
+            }
+            return error?.message || fallbackMessage;
         }
 
-        async function probeIdentityToolkitReachability(reason = 'unknown') {
-            if (!DEBUG_MOBILE_ROOM_FLOW_PANEL || authProbeStarted || !firebaseConfig?.apiKey) return;
-            authProbeStarted = true;
-            const controller = new AbortController();
-            const timeoutId = window.setTimeout(() => controller.abort(new Error('AUTH_PROBE_TIMEOUT')), 5000);
+        function showOnlineError(error, fallbackMessage = '\u8054\u673a\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002') {
+            const message = getFriendlyOnlineError(error, fallbackMessage);
+            elements.onlineStatus.textContent = message;
+            if (isMobileLayout()) {
+                window.alert(message);
+            }
+        }
+
+        async function runOnlineButtonAction(button, busyLabel, action, fallbackMessage) {
+            if (button.dataset.busy === 'true') return;
+            const idleLabel = button.textContent;
+            button.dataset.busy = 'true';
+            button.disabled = true;
+            button.textContent = busyLabel;
+            button.setAttribute('aria-busy', 'true');
             try {
-                // #region debug-point E:identity-toolkit-probe-start
-                reportMobileRoomFlow('E', 'probeIdentityToolkit:start', 'Start direct Identity Toolkit probe', { reason });
-                // #endregion
-                const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(firebaseConfig.apiKey)}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ returnSecureToken: true }),
-                    cache: 'no-store',
-                    signal: controller.signal
-                });
-                const text = await response.text();
-                let payload = null;
-                try {
-                    payload = text ? JSON.parse(text) : null;
-                } catch {
-                    payload = null;
-                }
-                // #region debug-point E:identity-toolkit-probe-success
-                reportMobileRoomFlow('E', 'probeIdentityToolkit:result', 'Identity Toolkit probe completed', {
-                    reason,
-                    ok: response.ok,
-                    status: response.status,
-                    localId: payload?.localId || '',
-                    errorMessage: payload?.error?.message || ''
-                });
-                // #endregion
+                await action();
             } catch (error) {
-                // #region debug-point E:identity-toolkit-probe-error
-                reportMobileRoomFlow('E', 'probeIdentityToolkit:error', 'Identity Toolkit probe failed', {
-                    reason,
-                    message: error?.message || String(error || '')
-                });
-                // #endregion
+                showOnlineError(error, fallbackMessage);
             } finally {
-                window.clearTimeout(timeoutId);
+                button.dataset.busy = 'false';
+                button.disabled = false;
+                button.textContent = idleLabel;
+                button.removeAttribute('aria-busy');
             }
         }
-        // #endregion
 
         function canCurrentViewerAct(state = transport.getState()) {
             const displayedPlayer = getDisplayedPiecePlayer(state);
+            return canDisplayedPlayerAct(state, displayedPlayer);
         }
 
         function hasPreviewPlacement(state = transport.getState()) {
@@ -4024,120 +3939,35 @@
                 && !String(firebaseConfig.projectId).includes('替换');
         }
 
-        async function ensureFirebaseReady(retryCount = 0) {
+        function ensureFirebaseReady() {
             if (!hasFirebaseConfig()) {
-                throw new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。');
+                return Promise.reject(new Error('请先在 firebase/firebase-config.js 填入你的 Firebase Web App 配置。'));
             }
-            // #region debug-point A:ensure-start
-            reportMobileRoomFlow('A', 'ensureFirebaseReady:start', 'Enter ensureFirebaseReady', {
-                hasCurrentUser: Boolean(currentUser),
-                hasDb: Boolean(db),
-                hasApp: Boolean(firebaseApp),
-                hasAuthReadyPromise: Boolean(authReadyPromise),
-                retryCount
-            });
-            // #endregion
-            if (currentUser && db) return currentUser;
+            if (currentUser && db) return Promise.resolve(currentUser);
             if (!firebaseApp) {
                 firebaseApp = initializeApp(firebaseConfig);
                 db = getFirestore(firebaseApp);
-                auth = createFirebaseAuth(firebaseApp);
-                // #region debug-point A:app-init
-                reportMobileRoomFlow('A', 'ensureFirebaseReady:init', 'Initialized Firebase app/auth/db');
-                // #endregion
-            }
-            const authPromiseStale = authReadyPromise && !currentUser && authReadyStartedAt && (Date.now() - authReadyStartedAt > 5000);
-            if (authPromiseStale) {
-                // #region debug-point A:stale-promise-reset
-                reportMobileRoomFlow('A', 'ensureFirebaseReady:stale-reset', 'Reset stale authReadyPromise before retry', {
-                    ageMs: Date.now() - authReadyStartedAt
-                });
-                // #endregion
-                authReadyPromise = null;
-                authReadyStartedAt = 0;
+                auth = getAuth(firebaseApp);
             }
             if (!authReadyPromise) {
-                authReadyStartedAt = Date.now();
                 authReadyPromise = new Promise((resolve, reject) => {
-                    let settled = false;
-                    let timeoutId = 0;
-                    let unsubscribe = () => {};
-                    const finish = (handler, value) => {
-                        if (settled) return;
-                        settled = true;
-                        window.clearTimeout(timeoutId);
+                    const unsubscribe = onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            currentUser = user;
+                            unsubscribe();
+                            resolve(user);
+                        }
+                    }, reject);
+                    signInAnonymously(auth).catch((error) => {
                         unsubscribe();
-                        handler(value);
-                    };
-                    unsubscribe = onAuthStateChanged(auth, (user) => {
-                        if (!user) return;
-                        currentUser = user;
-                        // #region debug-point A:auth-success
-                        reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged', 'Received authenticated user', {
-                            uid: user.uid,
-                            isAnonymous: user.isAnonymous
-                        });
-                        // #endregion
-                        finish(resolve, user);
-                    }, (error) => {
-                        // #region debug-point A:auth-listener-error
-                        reportMobileRoomFlow('A', 'ensureFirebaseReady:onAuthStateChanged:error', 'Auth state listener failed', {
-                            code: error?.code || '',
-                            message: error?.message || ''
-                        });
-                        // #endregion
-                        finish(reject, error);
+                        reject(error);
                     });
-                    timeoutId = window.setTimeout(() => {
-                        // #region debug-point A:auth-timeout
-                        reportMobileRoomFlow('A', 'ensureFirebaseReady:timeout', 'Auth readiness timed out', {
-                            elapsedMs: Date.now() - authReadyStartedAt
-                        });
-                        // #endregion
-                        probeIdentityToolkitReachability('auth-timeout').catch(() => {});
-                        finish(reject, new Error('AUTH_READY_TIMEOUT'));
-                    }, 5000);
-                    // #region debug-point A:sign-in-start
-                    reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:start', 'Call signInAnonymously');
-                    // #endregion
-                    signInAnonymously(auth).then((credential) => {
-                        currentUser = credential.user;
-                        // #region debug-point A:sign-in-success
-                        reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:success', 'Anonymous sign-in promise resolved', {
-                            uid: credential.user?.uid || '',
-                            isAnonymous: credential.user?.isAnonymous ?? true
-                        });
-                        // #endregion
-                        finish(resolve, credential.user);
-                    }).catch((error) => {
-                        // #region debug-point A:sign-in-error
-                        reportMobileRoomFlow('A', 'ensureFirebaseReady:signInAnonymously:error', 'Anonymous sign-in failed', {
-                            code: error?.code || '',
-                            message: error?.message || ''
-                        });
-                        // #endregion
-                        finish(reject, error);
-                    });
+                }).catch((error) => {
+                    authReadyPromise = null;
+                    throw error;
                 });
             }
-            try {
-                const user = await authReadyPromise;
-                authReadyStartedAt = 0;
-                return user;
-            } catch (error) {
-                authReadyPromise = null;
-                authReadyStartedAt = 0;
-                if (retryCount < 1) {
-                    // #region debug-point A:retry
-                    reportMobileRoomFlow('A', 'ensureFirebaseReady:retry', 'Retry auth readiness after failure', {
-                        message: error?.message || '',
-                        retryCount
-                    });
-                    // #endregion
-                    return ensureFirebaseReady(retryCount + 1);
-                }
-                throw error;
-            }
+            return withTimeout(authReadyPromise, 12000, getFirebaseTimeoutMessage());
         }
         function makeRoomId() {
             const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -4206,23 +4036,9 @@
         }
 
         async function loadRoomSession(roomId, uid) {
-            // #region debug-point C:load-session-start
-            reportMobileRoomFlow('C', 'loadRoomSession:start', 'Start loading room session', {
-                roomId,
-                uid
-            });
-            // #endregion
             const roomRef = doc(db, 'rooms', roomId);
             const roomSnap = await getDoc(roomRef);
-            if (!roomSnap.exists()) {
-                // #region debug-point C:room-missing
-                reportMobileRoomFlow('C', 'loadRoomSession:room-missing', 'Room snapshot missing', {
-                    roomId,
-                    uid
-                });
-                // #endregion
-                throw new Error('房间不存在或已过期');
-            }
+            if (!roomSnap.exists()) throw new Error('房间不存在或已过期');
 
             const playersSnap = await getDocs(collection(db, 'rooms', roomId, 'players'));
             const players = playersSnap.docs.map((item) => ({
@@ -4230,24 +4046,7 @@
                 uid: item.data().uid || item.id
             }));
             const client = players.find((player) => player.uid === uid);
-            if (!client) {
-                // #region debug-point C:client-missing
-                reportMobileRoomFlow('C', 'loadRoomSession:client-missing', 'Player missing from room players', {
-                    roomId,
-                    uid,
-                    playerCount: players.length
-                });
-                // #endregion
-                throw new Error('未找到该玩家，请重新加入房间');
-            }
-            // #region debug-point C:load-session-success
-            reportMobileRoomFlow('C', 'loadRoomSession:success', 'Loaded room session successfully', {
-                roomId,
-                uid,
-                playerCount: players.length,
-                status: roomSnap.data().status || 'unknown'
-            });
-            // #endregion
+            if (!client) throw new Error('未找到该玩家，请重新加入房间');
 
             return {
                 room: publicRoomFromData(roomId, roomSnap.data(), players),
@@ -4293,19 +4092,9 @@
         }
 
         async function createOnlineRoom() {
-            // #region debug-point D:create-path-start
-            reportMobileRoomFlow('D', 'createOnlineRoom:start', 'Entered createOnlineRoom', {
-                playerName: elements.playerName.value.trim(),
-                isMobileLayout: isMobileLayout()
-            });
-            // #endregion
+            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
-            // #region debug-point B:create-user-ready
-            reportMobileRoomFlow('B', 'createOnlineRoom:user-ready', 'User ready for room creation', {
-                uid: user.uid,
-                isAnonymous: user.isAnonymous
-            });
-            // #endregion
+            setOnlineProgress('\u6b63\u5728\u521b\u5efa\u623f\u95f4...');
             const state = {
                 ...transport.getState(),
                 status: 'waiting',
@@ -4320,13 +4109,7 @@
                 const colorSeatRef = doc(db, 'rooms', roomId, 'colorSeats', 'blue');
 
                 try {
-                    // #region debug-point B:create-tx-start
-                    reportMobileRoomFlow('B', 'createOnlineRoom:transaction:start', 'Start create room transaction', {
-                        roomId,
-                        attempt
-                    });
-                    // #endregion
-                    await runTransaction(db, async (transaction) => {
+                    await withTimeout(runTransaction(db, async (transaction) => {
                         const existingRoom = await transaction.get(roomRef);
                         if (existingRoom.exists()) throw new Error('ROOM_ID_COLLISION');
 
@@ -4355,24 +4138,17 @@
                             joinedAt: serverTimestamp(),
                             lastSeen: serverTimestamp()
                         });
-                    });
+                    }), 20000, '创建房间超时。请检查手机网络后重试。');
 
-                    // #region debug-point B:create-tx-success
-                    reportMobileRoomFlow('B', 'createOnlineRoom:transaction:success', 'Create room transaction committed', {
-                        roomId
-                    });
-                    // #endregion
-                    setOnlineSession(await loadRoomSession(roomId, user.uid));
+                    setOnlineProgress('房间已创建，正在读取房间数据...');
+                    const session = await withTimeout(
+                        loadRoomSession(roomId, user.uid),
+                        12000,
+                        '房间已经写入，但读取房间数据超时。请使用“重连上次房间”。'
+                    );
+                    setOnlineSession(session);
                     return;
                 } catch (error) {
-                    // #region debug-point B:create-error
-                    reportMobileRoomFlow('B', 'createOnlineRoom:error', 'Create room failed', {
-                        roomId,
-                        attempt,
-                        code: error?.code || '',
-                        message: error?.message || ''
-                    });
-                    // #endregion
                     if (error.message !== 'ROOM_ID_COLLISION') throw error;
                 }
             }
@@ -4381,95 +4157,67 @@
         }
 
         async function joinOnlineRoom() {
-            // #region debug-point D:join-path-start
-            reportMobileRoomFlow('D', 'joinOnlineRoom:start', 'Entered joinOnlineRoom', {
-                roomId: elements.joinRoomId.value.trim().toUpperCase(),
-                playerName: elements.playerName.value.trim(),
-                isMobileLayout: isMobileLayout()
-            });
-            // #endregion
             const roomId = elements.joinRoomId.value.trim().toUpperCase();
             if (!roomId) {
-                elements.onlineStatus.textContent = '请输入房间号。';
-                return;
+                throw new Error('请输入房间号。');
             }
+            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
-            // #region debug-point B:join-user-ready
-            reportMobileRoomFlow('B', 'joinOnlineRoom:user-ready', 'User ready for room join', {
-                uid: user.uid,
-                roomId
-            });
-            // #endregion
+            setOnlineProgress('\u6b63\u5728\u52a0\u5165\u623f\u95f4...');
             const name = elements.playerName.value.trim() || '玩家';
 
-            try {
-                // #region debug-point B:join-tx-start
-                reportMobileRoomFlow('B', 'joinOnlineRoom:transaction:start', 'Start join room transaction', {
-                    roomId
-                });
-                // #endregion
-                await runTransaction(db, async (transaction) => {
-                    const roomRef = doc(db, 'rooms', roomId);
-                    const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
-                    const roomSnap = await transaction.get(roomRef);
-                    if (!roomSnap.exists()) throw new Error('房间不存在或已过期');
+            await withTimeout(runTransaction(db, async (transaction) => {
+                const roomRef = doc(db, 'rooms', roomId);
+                const playerRef = doc(db, 'rooms', roomId, 'players', user.uid);
+                const roomSnap = await transaction.get(roomRef);
+                if (!roomSnap.exists()) throw new Error('房间不存在或已过期');
 
-                    const playerSnap = await transaction.get(playerRef);
-                    if (playerSnap.exists()) {
-                        transaction.update(playerRef, {
-                            name,
-                            connected: true,
-                            lastSeen: serverTimestamp()
-                        });
-                        transaction.update(roomRef, { updatedAt: serverTimestamp() });
-                        return;
-                    }
-
-                    const room = roomSnap.data();
-                    if (room.status !== 'waiting') throw new Error('对局已经开始，暂时不能加入新玩家。');
-                    const colors = getColorsForMode(room.mode);
-                    const seatRefs = colors.map((color) => doc(db, 'rooms', roomId, 'colorSeats', color));
-                    const seatSnaps = [];
-                    for (const seatRef of seatRefs) {
-                        seatSnaps.push(await transaction.get(seatRef));
-                    }
-                    const usedColors = new Set(seatSnaps.filter((snap) => snap.exists()).map((snap) => snap.data().color));
-                    const color = colors.find((item) => !usedColors.has(item));
-                    if (!color) throw new Error('房间已满，第一版暂不开放观战位。');
-
-                    transaction.set(doc(db, 'rooms', roomId, 'colorSeats', color), {
-                        color,
-                        uid: user.uid,
-                        occupiedAt: serverTimestamp()
-                    });
-                    transaction.set(playerRef, {
-                        uid: user.uid,
+                const playerSnap = await transaction.get(playerRef);
+                if (playerSnap.exists()) {
+                    transaction.update(playerRef, {
                         name,
-                        color,
-                        host: false,
                         connected: true,
-                        joinedAt: serverTimestamp(),
                         lastSeen: serverTimestamp()
                     });
-                });
-                // #region debug-point B:join-tx-success
-                reportMobileRoomFlow('B', 'joinOnlineRoom:transaction:success', 'Join room transaction committed', {
-                    roomId,
-                    uid: user.uid
-                });
-                // #endregion
-            } catch (error) {
-                // #region debug-point B:join-error
-                reportMobileRoomFlow('B', 'joinOnlineRoom:error', 'Join room failed', {
-                    roomId,
-                    code: error?.code || '',
-                    message: error?.message || ''
-                });
-                // #endregion
-                throw error;
-            }
+                    transaction.update(roomRef, { updatedAt: serverTimestamp() });
+                    return;
+                }
 
-            setOnlineSession(await loadRoomSession(roomId, user.uid));
+                const room = roomSnap.data();
+                if (room.status !== 'waiting') throw new Error('对局已经开始，暂时不能加入新玩家。');
+                const colors = getColorsForMode(room.mode);
+                const seatRefs = colors.map((color) => doc(db, 'rooms', roomId, 'colorSeats', color));
+                const seatSnaps = [];
+                for (const seatRef of seatRefs) {
+                    seatSnaps.push(await transaction.get(seatRef));
+                }
+                const usedColors = new Set(seatSnaps.filter((snap) => snap.exists()).map((snap) => snap.data().color));
+                const color = colors.find((item) => !usedColors.has(item));
+                if (!color) throw new Error('房间已满，第一版暂不开放观战位。');
+
+                transaction.set(doc(db, 'rooms', roomId, 'colorSeats', color), {
+                    color,
+                    uid: user.uid,
+                    occupiedAt: serverTimestamp()
+                });
+                transaction.set(playerRef, {
+                    uid: user.uid,
+                    name,
+                    color,
+                    host: false,
+                    connected: true,
+                    joinedAt: serverTimestamp(),
+                    lastSeen: serverTimestamp()
+                });
+            }), 20000, '加入房间超时。请确认房间号和手机网络后重试。');
+
+            setOnlineProgress('已加入房间，正在同步房间数据...');
+            const session = await withTimeout(
+                loadRoomSession(roomId, user.uid),
+                12000,
+                '已加入房间，但同步数据超时。请使用“重连上次房间”。'
+            );
+            setOnlineSession(session);
         }
 
         async function startOnlineRoom() {
@@ -4544,7 +4292,9 @@
         }
 
         async function reconnectOnlineRoom(showMissing = true) {
+            setOnlineProgress('\u6b63\u5728\u8fde\u63a5 Firebase...');
             const user = await ensureFirebaseReady();
+            setOnlineProgress('\u6b63\u5728\u91cd\u8fde\u623f\u95f4...');
             const saved = JSON.parse(localStorage.getItem('squareGameFirebaseSession') || 'null');
             if (!saved?.roomId || !saved?.clientId) {
                 if (showMissing) elements.onlineStatus.textContent = '没有可重连的房间记录。';
@@ -4733,38 +4483,20 @@
             updateBgmControls(`${getSelectedBgm().label} · 音频加载失败`, true);
         });
         elements.createRoom.addEventListener('click', () => {
-            // #region debug-point D:create-click
-            reportMobileRoomFlow('D', 'createRoom:click', 'Create room button clicked', {
-                text: elements.createRoom.textContent,
-                disabled: elements.createRoom.disabled
-            });
-            // #endregion
-            createOnlineRoom().catch((error) => {
-                // #region debug-point E:create-handler-error
-                reportMobileRoomFlow('E', 'createRoom:click:catch', 'Create room click handler caught error', {
-                    code: error?.code || '',
-                    message: error?.message || ''
-                });
-                // #endregion
-                elements.onlineStatus.textContent = error.message;
-            });
+            runOnlineButtonAction(
+                elements.createRoom,
+                '创建中…',
+                createOnlineRoom,
+                '\u521b\u5efa\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002'
+            );
         });
         elements.joinRoom.addEventListener('click', () => {
-            // #region debug-point D:join-click
-            reportMobileRoomFlow('D', 'joinRoom:click', 'Join room button clicked', {
-                text: elements.joinRoom.textContent,
-                disabled: elements.joinRoom.disabled
-            });
-            // #endregion
-            joinOnlineRoom().catch((error) => {
-                // #region debug-point E:join-handler-error
-                reportMobileRoomFlow('E', 'joinRoom:click:catch', 'Join room click handler caught error', {
-                    code: error?.code || '',
-                    message: error?.message || ''
-                });
-                // #endregion
-                elements.onlineStatus.textContent = error.message;
-            });
+            runOnlineButtonAction(
+                elements.joinRoom,
+                '加入中…',
+                joinOnlineRoom,
+                '\u52a0\u5165\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002'
+            );
         });
         elements.startRoom.addEventListener('click', () => {
             startOnlineRoom().catch((error) => {
@@ -4777,8 +4509,9 @@
             });
         });
         elements.reconnectRoom.addEventListener('click', () => {
+            setOnlineProgress('\u6b63\u5728\u91cd\u8fde\u623f\u95f4...');
             reconnectOnlineRoom(true).catch((error) => {
-                elements.onlineStatus.textContent = error.message;
+                showOnlineError(error, '\u91cd\u8fde\u623f\u95f4\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002');
             });
         });
         elements.copyRoomCode.addEventListener('click', async () => {
@@ -4956,15 +4689,9 @@
         if (!hasFirebaseConfig()) {
             elements.onlineStatus.textContent = '请先复制 firebase/firebase-config.example.js 为 firebase/firebase-config.js，并填入 Firebase Web App 配置。';
         }
-        if (isLikelyMobileBrowser()) {
-            // #region debug-point A:skip-auto-reconnect-mobile
-            reportMobileRoomFlow('A', 'startup:autoReconnect', 'Skip automatic reconnect on mobile to avoid stale auth promise');
-            // #endregion
-        } else {
-            reconnectOnlineRoom(false).catch(() => {
-                localStorage.removeItem('squareGameFirebaseSession');
-            });
-        }
+        reconnectOnlineRoom(false).catch(() => {
+            localStorage.removeItem('squareGameFirebaseSession');
+        });
 
         window.addEventListener('beforeunload', () => {
             if (!db || !onlineSession.roomId || !onlineSession.clientId) return;
