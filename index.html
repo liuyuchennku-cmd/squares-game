@@ -326,6 +326,27 @@
             border-color: rgba(183, 159, 114, 0.28);
         }
 
+        .mode-card.unfinished {
+            border-color: rgba(160, 160, 160, 0.28);
+            background:
+                linear-gradient(180deg, rgba(245, 245, 245, 0.96), rgba(231, 231, 231, 0.92)),
+                rgba(236, 236, 236, 0.88);
+            box-shadow: 0 22px 48px rgba(92, 92, 92, 0.08);
+        }
+
+        .mode-card.unfinished::before {
+            background: radial-gradient(circle, rgba(205, 205, 205, 0.4), transparent 68%);
+        }
+
+        .mode-card.unfinished::after {
+            background: linear-gradient(90deg, transparent, rgba(160, 160, 160, 0.24), transparent);
+        }
+
+        .mode-card.unfinished:hover {
+            border-color: rgba(150, 150, 150, 0.42);
+            box-shadow: 0 28px 60px rgba(92, 92, 92, 0.12);
+        }
+
         .badge {
             display: inline-flex;
             align-items: center;
@@ -374,6 +395,24 @@
             font-size: 15px;
             line-height: 1.85;
             max-width: 30em;
+        }
+
+        .mode-card.unfinished .mode-title {
+            color: #666666;
+        }
+
+        .mode-card.unfinished .mode-desc,
+        .mode-card.unfinished .mode-arrow {
+            color: rgba(102, 102, 102, 0.88);
+        }
+
+        .mode-card.unfinished .mode-arrow {
+            border-color: rgba(160, 160, 160, 0.18);
+            background: rgba(245, 245, 245, 0.82);
+        }
+
+        .mode-card.unfinished:hover .mode-arrow {
+            background: rgba(235, 235, 235, 0.92);
         }
 
         .mode-meta {
@@ -543,45 +582,37 @@
         <section class="section">
             <div class="section-head">
                 <h2>扩展模式</h2>
-                <span>入口已预留，内容建设中</span>
+                <span>入口已预留</span>
             </div>
             <div class="secondary-grid">
                 <a class="mode-card" href="./ai-mode.html">
-                    <div class="badge">Building</div>
                     <h2 class="mode-title">人机对弈</h2>
                     <p class="mode-desc">预留给 AI 对战与训练式玩法。</p>
                     <div class="mode-meta">
-                        <span class="mode-chip">建设中</span>
                         <span class="mode-arrow" aria-hidden="true">→</span>
                     </div>
                 </a>
 
                 <a class="mode-card" href="./advanced-mode.html">
-                    <div class="badge">Building</div>
                     <h2 class="mode-title">进阶模式</h2>
                     <p class="mode-desc">预留给更复杂的回合规则与进阶挑战。</p>
                     <div class="mode-meta">
-                        <span class="mode-chip">建设中</span>
                         <span class="mode-arrow" aria-hidden="true">→</span>
                     </div>
                 </a>
 
                 <a class="mode-card" href="./random-mode.html">
-                    <div class="badge">Building</div>
                     <h2 class="mode-title">随机模式</h2>
                     <p class="mode-desc">预留给随机棋子、随机规则或特殊局面。</p>
                     <div class="mode-meta">
-                        <span class="mode-chip">建设中</span>
                         <span class="mode-arrow" aria-hidden="true">→</span>
                     </div>
                 </a>
 
-                <a class="mode-card" href="./skill-mode.html">
-                    <div class="badge">Building</div>
+                <a class="mode-card unfinished" href="./skill-mode.html">
                     <h2 class="mode-title">技能模式</h2>
                     <p class="mode-desc">预留给技能机制、道具与变体玩法。</p>
                     <div class="mode-meta">
-                        <span class="mode-chip">建设中</span>
                         <span class="mode-arrow" aria-hidden="true">→</span>
                     </div>
                 </a>
