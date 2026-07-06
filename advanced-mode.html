@@ -1401,6 +1401,104 @@
             position: relative;
         }
 
+        .skill-choice-modal {
+            align-items: center;
+            display: grid;
+            inset: 0;
+            justify-items: center;
+            padding: 22px;
+            position: fixed;
+            z-index: 1210;
+        }
+
+        .skill-choice-modal.hidden {
+            display: none;
+        }
+
+        .skill-choice-card {
+            animation: victory-card-in 0.28s ease-out both;
+            background: linear-gradient(180deg, #fffdf8 0%, #fff6e7 100%);
+            border: 1px solid rgba(138, 90, 0, 0.16);
+            border-radius: 28px;
+            box-shadow: 0 28px 80px rgba(0,0,0,0.24);
+            max-width: 560px;
+            padding: 26px;
+            position: relative;
+            width: min(100%, 560px);
+        }
+
+        .skill-choice-kicker {
+            color: #9a6c12;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            margin: 0 0 10px;
+            text-transform: uppercase;
+        }
+
+        .skill-choice-title {
+            color: #3f2b00;
+            font-size: 28px;
+            margin: 0;
+        }
+
+        .skill-choice-desc {
+            color: #755319;
+            font-size: 15px;
+            line-height: 1.8;
+            margin: 12px 0 0;
+        }
+
+        .skill-choice-actions {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: 22px;
+        }
+
+        .skill-choice-button {
+            align-items: flex-start;
+            background: rgba(255,255,255,0.9);
+            border: 1px solid rgba(138, 90, 0, 0.16);
+            border-radius: 20px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-height: 120px;
+            padding: 18px;
+            text-align: left;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+        }
+
+        .skill-choice-button:hover {
+            border-color: rgba(138, 90, 0, 0.32);
+            box-shadow: 0 14px 32px rgba(138, 90, 0, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .skill-choice-button strong {
+            color: #402c00;
+            font-size: 18px;
+        }
+
+        .skill-choice-button span {
+            color: #856536;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .skill-choice-close {
+            margin-top: 14px;
+            text-align: right;
+        }
+
+        @media (max-width: 680px) {
+            .skill-choice-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .ad-creative::after {
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent);
             content: "";
@@ -2478,6 +2576,28 @@
         </section>
     </div>
 
+    <div class="skill-choice-modal hidden" id="sandstormChoiceModal" role="dialog" aria-modal="true" aria-labelledby="sandstormChoiceTitle">
+        <div class="ad-backdrop"></div>
+        <section class="skill-choice-card">
+            <p class="skill-choice-kicker">飞沙走石</p>
+            <h2 class="skill-choice-title" id="sandstormChoiceTitle">选择移走目标</h2>
+            <p class="skill-choice-desc">观看广告后，本次飞沙走石已经解锁。请选择你这次要移走哪一类棋子。</p>
+            <div class="skill-choice-actions">
+                <button class="skill-choice-button" id="sandstormRemoveSelf" type="button">
+                    <strong>移走自己的棋子</strong>
+                    <span>在棋盘上点击一颗自己颜色的已落子棋子。</span>
+                </button>
+                <button class="skill-choice-button" id="sandstormRemoveOpponent" type="button">
+                    <strong>移走对手的棋子</strong>
+                    <span>在棋盘上点击一颗非自己颜色的已落子棋子。</span>
+                </button>
+            </div>
+            <div class="skill-choice-close">
+                <button class="button" id="sandstormChoiceCancel" type="button">稍后再说</button>
+            </div>
+        </section>
+    </div>
+
     <script src="./firebase/firebase-config.js"></script>
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
@@ -3114,6 +3234,10 @@
             opponentAdCountdown: document.getElementById('opponentAdCountdown'),
             advancedDoubleMove: document.getElementById('advancedDoubleMove'),
             advancedSandstorm: document.getElementById('advancedSandstorm'),
+            sandstormChoiceModal: document.getElementById('sandstormChoiceModal'),
+            sandstormRemoveSelf: document.getElementById('sandstormRemoveSelf'),
+            sandstormRemoveOpponent: document.getElementById('sandstormRemoveOpponent'),
+            sandstormChoiceCancel: document.getElementById('sandstormChoiceCancel'),
             musicControl: document.getElementById('musicControl'),
             bgmPlayer: document.getElementById('bgmPlayer'),
             victorySound: document.getElementById('victorySound'),
@@ -3767,6 +3891,14 @@
             opponentAdTargetColor = null;
             adRewardHandler = null;
             hideOpponentAd();
+        }
+
+        function openSandstormChoiceModal() {
+            elements.sandstormChoiceModal.classList.remove('hidden');
+        }
+
+        function closeSandstormChoiceModal() {
+            elements.sandstormChoiceModal.classList.add('hidden');
         }
 
         function resetOpponentIntelSession() {
@@ -4704,14 +4836,25 @@
                 openRewardAd(
                     '正在解锁“飞沙走石”',
                     '完整观看后，可选择移走自己的棋子或对手的棋子。',
-                    () => {
-                        const removeSelf = window.confirm('飞沙走石已解锁。\n点击“确定”移走自己的棋子；点击“取消”移走对手的棋子。');
-                        transport.dispatch({
-                            type: 'ACTIVATE_ADVANCED_SANDSTORM',
-                            targetMode: removeSelf ? 'self' : 'opponent'
-                        });
-                    }
+                    () => openSandstormChoiceModal()
                 );
+            });
+        }
+        if (elements.sandstormRemoveSelf) {
+            elements.sandstormRemoveSelf.addEventListener('click', () => {
+                closeSandstormChoiceModal();
+                transport.dispatch({ type: 'ACTIVATE_ADVANCED_SANDSTORM', targetMode: 'self' });
+            });
+        }
+        if (elements.sandstormRemoveOpponent) {
+            elements.sandstormRemoveOpponent.addEventListener('click', () => {
+                closeSandstormChoiceModal();
+                transport.dispatch({ type: 'ACTIVATE_ADVANCED_SANDSTORM', targetMode: 'opponent' });
+            });
+        }
+        if (elements.sandstormChoiceCancel) {
+            elements.sandstormChoiceCancel.addEventListener('click', () => {
+                closeSandstormChoiceModal();
             });
         }
         elements.confirmPlacement.addEventListener('click', () => {
@@ -4922,6 +5065,14 @@
                 if (event.key === 'Escape') {
                     event.preventDefault();
                     cancelOpponentAd();
+                }
+                return;
+            }
+
+            if (!elements.sandstormChoiceModal.classList.contains('hidden')) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeSandstormChoiceModal();
                 }
                 return;
             }
