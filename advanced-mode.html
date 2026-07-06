@@ -1488,6 +1488,20 @@
             line-height: 1.7;
         }
 
+        .skill-choice-button:disabled {
+            background: rgba(245, 241, 232, 0.92);
+            border-color: rgba(138, 90, 0, 0.1);
+            box-shadow: none;
+            cursor: not-allowed;
+            opacity: 0.58;
+            transform: none;
+        }
+
+        .skill-choice-button:disabled strong,
+        .skill-choice-button:disabled span {
+            color: #9d8b67;
+        }
+
         .skill-choice-close {
             margin-top: 14px;
             text-align: right;
@@ -2585,11 +2599,13 @@
             <div class="skill-choice-actions">
                 <button class="skill-choice-button" id="sandstormRemoveSelf" type="button">
                     <strong>移走自己的棋子</strong>
-                    <span>在棋盘上点击一颗自己颜色的已落子棋子。</span>
+                    <span><strong>目标：</strong>在棋盘上点击一颗自己颜色的已落子棋子。</span>
+                    <span><strong>说明：</strong>移走的棋子将被销毁，而非撤回；自己的剩余棋子数不再统计这枚棋子。</span>
                 </button>
                 <button class="skill-choice-button" id="sandstormRemoveOpponent" type="button">
                     <strong>移走对手的棋子</strong>
-                    <span>在棋盘上点击一颗非自己颜色的已落子棋子。</span>
+                    <span><strong>目标：</strong>在棋盘上点击一颗非自己颜色的已落子棋子。</span>
+                    <span><strong>说明：</strong>移走的棋子将被销毁，而非撤回；对手的剩余棋子数不再统计这枚棋子。</span>
                 </button>
             </div>
             <div class="skill-choice-close">
@@ -2730,7 +2746,7 @@
                     passed: false,
                     autoSkip: false,
                     advancedDoubleAvailable: 1,
-                    advancedSandstormAvailable: 2
+                    advancedSandstormUsage: { self: false, opponent: false }
                 })),
                 currentPlayerIndex: 0,
                 selectedPieceId: null,
@@ -2999,8 +3015,13 @@
                     };
                 }
                 case 'ACTIVATE_ADVANCED_SANDSTORM': {
-                    if (player.advancedSandstormAvailable <= 0) {
-                        return { ...state, message: '本局的飞沙走石次数已经用完。' };
+                    if (player.advancedSandstormUsage?.[action.targetMode]) {
+                        return {
+                            ...state,
+                            message: action.targetMode === 'self'
+                                ? '本局已经移走过一次自己的棋子了。'
+                                : '本局已经移走过一次对手的棋子了。'
+                        };
                     }
                     if (state.skillDoubleRemaining > 0) {
                         return { ...state, message: '双宿双飞已生效，请先完成连续落子。' };
@@ -3020,7 +3041,12 @@
                         ...state,
                         players: state.players.map((item) => item.id === player.id ? {
                             ...item,
-                            advancedSandstormAvailable: Math.max(0, (item.advancedSandstormAvailable ?? 2) - 1)
+                            advancedSandstormUsage: {
+                                self: false,
+                                opponent: false,
+                                ...(item.advancedSandstormUsage || {}),
+                                [action.targetMode]: true
+                            }
                         } : item),
                         selectedPieceId: null,
                         selectedCells: null,
@@ -3894,6 +3920,11 @@
         }
 
         function openSandstormChoiceModal() {
+            const state = transport.getState();
+            const player = getCurrentPlayer(state);
+            const usage = player.advancedSandstormUsage || { self: false, opponent: false };
+            elements.sandstormRemoveSelf.disabled = Boolean(usage.self);
+            elements.sandstormRemoveOpponent.disabled = Boolean(usage.opponent);
             elements.sandstormChoiceModal.classList.remove('hidden');
         }
 
@@ -4271,13 +4302,15 @@
                     || (displayedPlayer.advancedDoubleAvailable ?? 0) <= 0;
             }
             if (elements.advancedSandstorm) {
+                const sandstormUsage = displayedPlayer.advancedSandstormUsage || { self: false, opponent: false };
+                const sandstormRemaining = Number(!sandstormUsage.self) + Number(!sandstormUsage.opponent);
                 elements.advancedSandstorm.textContent = isAdvancedRemovalActive(state)
                     ? (state.skillRemovalMode === 'self' ? '飞沙走石：请选择自己的棋子' : '飞沙走石：请选择对手棋子')
-                    : `看广告飞沙走石（剩余 ${displayedPlayer.advancedSandstormAvailable ?? 0}/2）`;
+                    : `看广告飞沙走石（剩余 ${sandstormRemaining}/2）`;
                 elements.advancedSandstorm.disabled = !canAct
                     || isAdvancedRemovalActive(state)
                     || state.skillDoubleRemaining > 0
-                    || (displayedPlayer.advancedSandstormAvailable ?? 0) <= 0;
+                    || sandstormRemaining <= 0;
             }
             const canAutoSkipRest = canAct && !displayedPlayer.autoSkip && displayedPlayer.remainingPieceIds.length <= 10;
             elements.autoSkipRest.classList.toggle('hidden', !canAutoSkipRest);
@@ -4376,7 +4409,7 @@
                 skillDoubleRemaining: snapshot.skillDoubleRemaining || 0,
                 players: (snapshot.players || []).map((player) => ({
                     advancedDoubleAvailable: 1,
-                    advancedSandstormAvailable: 2,
+                    advancedSandstormUsage: { self: false, opponent: false },
                     ...player
                 }))
             };
