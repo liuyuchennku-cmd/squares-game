@@ -4987,12 +4987,12 @@
             }, { merge: true }).catch(() => {});
         });
 
-        import('./firebase/firebase-client.js?v=skin-tones-v4').then((skinModule) => {
+        import('./firebase/firebase-client.js?v=skin-conflict-v6').then((skinModule) => {
             applyPlayerSkins = skinModule.applyPlayerSkins;
             if (onlineSession.room?.clients) applyPlayerSkins(onlineSession.room.clients);
         }).catch(() => {});
 
-        import('./assets/skins/skin-renderer.js?v=orientation-preview-v7').then((skinModule) => {
+        import('./assets/skins/skin-renderer.js?v=skin-scale-v9').then((skinModule) => {
             window.squareGameSkinRenderer = skinModule;
             render(transport.getState());
         }).catch(() => {});

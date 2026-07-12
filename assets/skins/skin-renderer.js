@@ -58,11 +58,12 @@ const ART_BOUNDS = new Map();
 const ART_BOUND_REQUESTS = new Map();
 const OPAQUE_PIXEL_ALPHA = 128;
 const ART_CONTENT_SCALE = 1.25;
-const REDUCED_ART_SCALE = 1.08;
+const REDUCED_ART_SCALE = 1;
 const REDUCED_ART_SKINS = new Set([
-    'classic', 'ocean', 'forest', 'ember', 'neon', 'glowing_mycelium',
-    'rope_knots', 'thunder_pulse'
+    'classic', 'ocean', 'forest', 'ember', 'glowing_mycelium',
+    'rope_knots', 'thunder_pulse', 'vine_path'
 ]);
+const PREVIOUS_REDUCED_ART_SKINS = new Set(['neon']);
 
 const BASE_PLAYER_THEMES = {
     blue: { accent: '#218be0', deep: '#0d5ca8' },
@@ -562,7 +563,11 @@ export function applyBoardPieceArt(boardElement, board, getSkinIdForColor) {
         const source = getPieceAssetPath(skinId, group.pieceId);
 
         if (!source) return;
-        const contentScale = REDUCED_ART_SKINS.has(skinId) ? REDUCED_ART_SCALE : ART_CONTENT_SCALE;
+        const contentScale = REDUCED_ART_SKINS.has(skinId)
+            ? REDUCED_ART_SCALE
+            : PREVIOUS_REDUCED_ART_SKINS.has(skinId)
+                ? 1.08
+                : ART_CONTENT_SCALE;
         requestArtBounds(source).then((bounds) => {
             if (boardElement.dataset.pieceArtVersion === version) {
                 renderGroupArt(boardElement, group, bounds, contentScale);

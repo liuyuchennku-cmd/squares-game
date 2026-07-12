@@ -24,10 +24,27 @@ service cloud.firestore {
         ];
     }
 
+    function canSubmitSkinConflictChoice(roomId) {
+      return isPlayer(roomId)
+        && resource.data.status == 'skin_conflict'
+        && resource.data.skinConflict is map
+        && resource.data.skinConflict.phase == 'rps'
+        && resource.data.skinConflict.participants is list
+        && resource.data.skinConflict.participants.hasAny([request.auth.uid])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['skinConflict', 'updatedAt'])
+        && request.resource.data.skinConflict is map
+        && request.resource.data.skinConflict.diff(resource.data.skinConflict).affectedKeys().hasOnly(['choices'])
+        && request.resource.data.skinConflict.choices is map
+        && request.resource.data.skinConflict.choices.keys().size() <= 2
+        && request.resource.data.skinConflict.choices.diff(resource.data.skinConflict.choices).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.skinConflict.choices[request.auth.uid] in ['rock', 'paper', 'scissors'];
+    }
+
     match /rooms/{roomId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
       allow update: if isHost(roomId)
+        || canSubmitSkinConflictChoice(roomId)
         || (
           isPlayer(roomId)
           && request.resource.data.mode == resource.data.mode

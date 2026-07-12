@@ -2472,6 +2472,14 @@
             green: { name: '玩家4', css: 'green' }
         };
 
+        const SKIN_OPTIONS = [
+            ['base', '基础皮肤（随机）'], ['carved_wood', '雕刻木纹'], ['neon', '霓虹回路'],
+            ['forest', '奶奶的翡翠'], ['ember', '熔岩'], ['classic', '水晶'],
+            ['vine_path', '藤径'], ['rope_knots', '绳结'], ['star_constellation', '星座'],
+            ['thunder_pulse', '雷霆脉冲'], ['ocean', '水脉'], ['glowing_mycelium', '荧光菌丝']
+        ];
+        let skinConflictResolutionPending = false;
+
         const VICTORY_THEMES = {
             blue: { main: '#1e88e5', deep: '#0d47a1', soft: '#e3f2fd', glow: 'rgba(30, 136, 229, 0.36)', contrast: '#ffffff' },
             yellow: { main: '#f5b21b', deep: '#7a4b00', soft: '#fff7d6', glow: 'rgba(245, 178, 27, 0.42)', contrast: '#3d2a00' },
@@ -3868,8 +3876,127 @@
             return '';
         }
 
+        function findSkinConflict(clients) {
+            const groups = new Map();
+            clients.forEach((client) => groups.set(client.skinId, [...(groups.get(client.skinId) || []), client]));
+            return [...groups.values()].find((players) => players.length > 1)?.slice(0, 2) || null;
+        }
+
+        function ensureSkinConflictUi() {
+            let overlay = document.getElementById('skinConflictOverlay');
+            if (overlay) return overlay;
+            const style = document.createElement('style');
+            style.textContent = '.skin-conflict-overlay{align-items:center;background:rgba(17,24,39,.48);display:none;inset:0;justify-content:center;padding:24px;position:fixed;z-index:1000}.skin-conflict-overlay.open{display:flex}.skin-conflict-dialog{background:#fffdf8;border:1px solid #d9c49f;border-radius:8px;box-shadow:0 24px 60px rgba(0,0,0,.24);max-width:480px;padding:28px;text-align:center;width:min(100%,480px)}.skin-conflict-dialog h2{margin:0;font-size:24px}.skin-conflict-dialog p{color:#625c52;line-height:1.7;margin:10px 0}.skin-conflict-countdown{color:#b24a32;font-size:32px;font-weight:800;margin:12px 0}.skin-conflict-actions{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-top:18px}.skin-conflict-actions button{background:#fff;border:1px solid #d7cbb6;border-radius:6px;cursor:pointer;font:inherit;min-height:48px}.skin-conflict-actions button:disabled{cursor:default;opacity:.55}.skin-conflict-skins{grid-template-columns:repeat(2,minmax(0,1fr))}';
+            document.head.appendChild(style);
+            overlay = document.createElement('div');
+            overlay.id = 'skinConflictOverlay';
+            overlay.className = 'skin-conflict-overlay';
+            document.body.appendChild(overlay);
+            setInterval(renderSkinConflict, 250);
+            return overlay;
+        }
+
+        const randomRpsMove = () => ['rock', 'paper', 'scissors'][Math.floor(Math.random() * 3)];
+        function resolveRps(left, right) {
+            if (left === right) return 0;
+            return (left === 'rock' && right === 'scissors') || (left === 'scissors' && right === 'paper') || (left === 'paper' && right === 'rock') ? 1 : -1;
+        }
+
+        async function startPlayingRoom() {
+            const nextState = { ...transport.getState(), status: 'playing', message: '对局开始。玩家1先落子。' };
+            await updateDoc(doc(db, 'rooms', onlineSession.roomId), {
+                status: 'playing', skinConflict: null, snapshot: encodeGameStateForFirestore(nextState), updatedAt: serverTimestamp()
+            });
+        }
+
+        async function openSkinConflict(pair) {
+            const unavailableSkinIds = onlineSession.room.clients
+                .filter((client) => !pair.some((contender) => contender.clientId === client.clientId))
+                .map((client) => client.skinId);
+            unavailableSkinIds.push(pair[0].skinId);
+            await updateDoc(doc(db, 'rooms', onlineSession.roomId), {
+                status: 'skin_conflict',
+                skinConflict: { phase: 'rps', participants: pair.map((client) => client.clientId), choices: {}, deadlineAt: Date.now() + 10_000, round: 1, unavailableSkinIds },
+                updatedAt: serverTimestamp()
+            });
+        }
+
+        async function submitSkinConflictMove(move) {
+            const conflict = onlineSession.room?.skinConflict;
+            if (conflict?.phase !== 'rps' || !conflict.participants?.includes(onlineSession.clientId)) return;
+            await updateDoc(doc(db, 'rooms', onlineSession.roomId), {
+                [`skinConflict.choices.${onlineSession.clientId}`]: move, updatedAt: serverTimestamp()
+            });
+        }
+
+        async function chooseReplacementSkin(skinId) {
+            const conflict = onlineSession.room?.skinConflict;
+            if (conflict?.phase !== 'reselect' || conflict.loserUid !== onlineSession.clientId || conflict.unavailableSkinIds?.includes(skinId)) return;
+            await updateDoc(doc(db, 'rooms', onlineSession.roomId, 'players', onlineSession.clientId), { skinId, lastSeen: serverTimestamp() });
+        }
+
+        async function resolveSkinConflict() {
+            const conflict = onlineSession.room?.skinConflict;
+            if (!onlineSession.host || conflict?.phase !== 'rps' || skinConflictResolutionPending) return;
+            if (!conflict.participants.every((uid) => conflict.choices?.[uid]) && Date.now() < conflict.deadlineAt) return;
+            skinConflictResolutionPending = true;
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const roomRef = doc(db, 'rooms', onlineSession.roomId);
+                    const roomSnap = await transaction.get(roomRef);
+                    const latest = roomSnap.data()?.skinConflict;
+                    if (!roomSnap.exists() || roomSnap.data().status !== 'skin_conflict' || latest?.phase !== 'rps') return;
+                    const [firstUid, secondUid] = latest.participants;
+                    const firstMove = latest.choices?.[firstUid] || randomRpsMove();
+                    const secondMove = latest.choices?.[secondUid] || randomRpsMove();
+                    const result = resolveRps(firstMove, secondMove);
+                    if (result === 0) {
+                        transaction.update(roomRef, { skinConflict: { ...latest, choices: {}, deadlineAt: Date.now() + 10_000, round: (latest.round || 1) + 1 }, updatedAt: serverTimestamp() });
+                        return;
+                    }
+                    transaction.update(roomRef, {
+                        skinConflict: { ...latest, phase: 'reselect', winnerUid: result > 0 ? firstUid : secondUid, loserUid: result > 0 ? secondUid : firstUid, firstMove, secondMove },
+                        updatedAt: serverTimestamp()
+                    });
+                });
+            } finally {
+                skinConflictResolutionPending = false;
+            }
+        }
+
+        function renderSkinConflict() {
+            const overlay = ensureSkinConflictUi();
+            const conflict = onlineSession.room?.skinConflict;
+            if (!conflict || onlineSession.room?.status !== 'skin_conflict') { overlay.classList.remove('open'); return; }
+            overlay.classList.add('open');
+            if (conflict.phase === 'rps') {
+                const participant = conflict.participants?.includes(onlineSession.clientId);
+                const submitted = conflict.choices?.[onlineSession.clientId];
+                const seconds = Math.max(0, Math.ceil((conflict.deadlineAt - Date.now()) / 1000));
+                overlay.innerHTML = `<section class="skin-conflict-dialog" role="dialog" aria-modal="true"><h2>皮肤冲突：石头剪刀布</h2><p>${participant ? '请在倒计时结束前出拳；超时将随机出拳。' : '其他玩家正在解决皮肤冲突，请稍候。'}</p><div class="skin-conflict-countdown">${seconds}</div><div class="skin-conflict-actions">${['rock|石头','paper|布','scissors|剪刀'].map((item) => { const [move, label] = item.split('|'); return `<button data-rps="${move}" ${!participant || submitted ? 'disabled' : ''}>${submitted === move ? `${label}（已选）` : label}</button>`; }).join('')}</div></section>`;
+                overlay.querySelectorAll('[data-rps]').forEach((button) => button.addEventListener('click', () => submitSkinConflictMove(button.dataset.rps).catch((error) => { elements.onlineStatus.textContent = error.message; })));
+                resolveSkinConflict().catch((error) => { elements.onlineStatus.textContent = error.message; });
+                return;
+            }
+            const isLoser = conflict.loserUid === onlineSession.clientId;
+            const options = SKIN_OPTIONS.filter(([skinId]) => !conflict.unavailableSkinIds?.includes(skinId));
+            overlay.innerHTML = `<section class="skin-conflict-dialog" role="dialog" aria-modal="true"><h2>${isLoser ? '请选择新的皮肤' : '等待对手重新选择皮肤'}</h2><p>${isLoser ? '本局石头剪刀布失利。以下皮肤未被房间内其他玩家使用。' : '胜者保留当前皮肤，对手正在重新选择。'}</p>${isLoser ? `<div class="skin-conflict-actions skin-conflict-skins">${options.map(([skinId, label]) => `<button data-skin-choice="${skinId}">${label}</button>`).join('')}</div>` : ''}</section>`;
+            overlay.querySelectorAll('[data-skin-choice]').forEach((button) => button.addEventListener('click', () => chooseReplacementSkin(button.dataset.skinChoice).catch((error) => { elements.onlineStatus.textContent = error.message; })));
+            if (onlineSession.host) {
+                const nextConflict = findSkinConflict(onlineSession.room.clients || []);
+                const samePair = nextConflict
+                    && nextConflict.every((client) => conflict.participants?.includes(client.clientId));
+                if (!nextConflict) {
+                    startPlayingRoom().catch((error) => { elements.onlineStatus.textContent = error.message; });
+                } else if (!samePair) {
+                    openSkinConflict(nextConflict).catch((error) => { elements.onlineStatus.textContent = error.message; });
+                }
+            }
+        }
+
         function renderOnlinePanel() {
             const room = onlineSession.room;
+            renderSkinConflict();
             elements.roomCode.textContent = onlineSession.roomId || '----';
             elements.mySeat.textContent = onlineSession.clientId
                 ? `你的身份：${onlineSession.host ? '房主 · ' : ''}${colorName(onlineSession.color)}`
@@ -4037,6 +4164,7 @@
                 mode: roomData.mode,
                 boardSize: roomData.boardSize,
                 status: roomData.status || 'waiting',
+                skinConflict: roomData.skinConflict || null,
                 createdAt: timestampToMillis(roomData.createdAt),
                 updatedAt: timestampToMillis(roomData.updatedAt),
                 clients: players.map((player) => ({
@@ -4248,8 +4376,13 @@
             }
             const room = onlineSession.room;
             const expectedCount = getColorsForMode(room.mode).length;
+            const skinConflict = findSkinConflict(room.clients || []);
             if ((room.clients?.length || 0) < expectedCount) {
                 window.alert(`当前人数不足，${room.mode} 人房间需要满 ${expectedCount} 人后才能开始。`);
+                return;
+            }
+            if (skinConflict) {
+                await openSkinConflict(skinConflict);
                 return;
             }
             const nextState = {
@@ -4725,12 +4858,12 @@
             }, { merge: true }).catch(() => {});
         });
 
-        import('./firebase/firebase-client.js?v=skin-tones-v4').then((skinModule) => {
+        import('./firebase/firebase-client.js?v=skin-conflict-v6').then((skinModule) => {
             applyPlayerSkins = skinModule.applyPlayerSkins;
             if (onlineSession.room?.clients) applyPlayerSkins(onlineSession.room.clients);
         }).catch(() => {});
 
-        import('./assets/skins/skin-renderer.js?v=orientation-preview-v7').then((skinModule) => {
+        import('./assets/skins/skin-renderer.js?v=skin-scale-v9').then((skinModule) => {
             window.squareGameSkinRenderer = skinModule;
             render(transport.getState());
         }).catch(() => {});

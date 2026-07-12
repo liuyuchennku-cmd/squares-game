@@ -49,7 +49,7 @@ export const SKINS = {
         }
     },
     forest: {
-        label: '藤蔓',
+        label: '奶奶的翡翠',
         accent: '#15803d',
         colors: {
             blue: ['#164e63', '#0e7490'],
