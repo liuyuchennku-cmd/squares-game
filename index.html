@@ -194,6 +194,79 @@
             line-height: 1.7;
         }
 
+        .profile-card {
+            display: grid;
+            gap: 10px;
+        }
+
+        .profile-status {
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .profile-id {
+            color: rgba(90, 71, 48, 0.68);
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: 12px;
+        }
+
+        .profile-card label {
+            color: rgba(90, 71, 48, 0.76);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .profile-controls {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+        }
+
+        .skin-preview {
+            background: #fffdf8;
+            border: 1px solid var(--line-strong);
+            border-radius: 8px;
+            flex: 0 0 auto;
+            height: 64px;
+            overflow: hidden;
+            width: 94px;
+        }
+
+        .skin-preview img {
+            display: block;
+            height: 100%;
+            object-fit: contain;
+            transform: scale(1.55);
+            width: 100%;
+        }
+
+        .skin-preview-grid {
+            display: grid;
+            gap: 3px;
+            grid-template-columns: repeat(3, 18px);
+            justify-content: center;
+            padding-top: 14px;
+        }
+
+        .skin-preview-cell {
+            aspect-ratio: 1;
+            background: #218be0;
+            border-radius: 4px;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.38), 0 1px 3px rgba(35, 30, 22, 0.25);
+        }
+
+        #skinSelect {
+            background: rgba(255, 252, 244, 0.92);
+            border: 1px solid var(--line-strong);
+            border-radius: 10px;
+            color: var(--text);
+            font: inherit;
+            min-height: 36px;
+            padding: 0 10px;
+            width: 100%;
+        }
+
         .section {
             margin-top: 28px;
         }
@@ -539,13 +612,34 @@
                     <p>这是当前版本的统一游戏入口。你可以直接进入本地模式进行面对面对弈，或进入联机模式创建并加入房间；其余玩法已预留入口，将在后续版本逐步开放。</p>
                 </div>
                 <aside class="hero-aside">
-                    <div class="aside-card">
-                        <div class="aside-label">当前推荐</div>
-                        <div class="aside-value">先体验本地模式与联机模式，两者已经接入现有页面。</div>
-                    </div>
-                    <div class="aside-card">
-                        <div class="aside-label">版本状态</div>
-                        <div class="aside-value">建设重点已切换到电脑版大厅与流程体验。</div>
+                    <div class="aside-card profile-card" aria-label="用户资料">
+                        <div class="aside-label">用户身份</div>
+                        <div class="profile-status" id="userStatus">正在建立身份...</div>
+                        <div class="profile-id" id="userId">UID: --</div>
+                        <label for="skinSelect">我的皮肤</label>
+                        <div class="profile-controls">
+                            <div class="skin-preview" id="skinPreview">
+                                <div class="skin-preview-grid" aria-label="基础皮肤的 T形4 预览">
+                                    <span></span><span class="skin-preview-cell"></span><span></span>
+                                    <span class="skin-preview-cell"></span><span class="skin-preview-cell"></span><span class="skin-preview-cell"></span>
+                                </div>
+                            </div>
+                            <select id="skinSelect">
+                                <option value="base">基础皮肤（随机）</option>
+                                <option value="classic">水晶</option>
+                                <option value="ocean">水脉</option>
+                                <option value="forest">藤蔓</option>
+                                <option value="ember">熔岩</option>
+                                <option value="neon">霓虹回路</option>
+                                <option value="glowing_mycelium">荧光菌丝</option>
+                                <option value="rope_knots">绳结</option>
+                                <option value="star_constellation">星座</option>
+                                <option value="thunder_pulse">雷霆脉冲</option>
+                                <option value="vine_path">藤径</option>
+                                <option value="carved_wood">雕刻木纹</option>
+                            </select>
+                        </div>
+                        <div class="aside-label" id="skinStatus">皮肤会同步到联机房间。</div>
                     </div>
                 </aside>
             </div>
@@ -622,5 +716,92 @@
             </div>
         </section>
     </main>
+    <script src="./firebase/firebase-config.js"></script>
+    <script type="module">
+        import {
+            applySkin,
+            ensureUserProfile,
+            saveUserProfile
+} from './firebase/firebase-client.js?v=skin-tones-v4';
+
+        const userStatus = document.getElementById('userStatus');
+        const userId = document.getElementById('userId');
+        const skinSelect = document.getElementById('skinSelect');
+        const skinPreview = document.getElementById('skinPreview');
+        const skinStatus = document.getElementById('skinStatus');
+        const previewFolders = {
+            classic: 'crystal_pieces_transparent',
+            ocean: 'water_vein_v2_pieces_transparent_512',
+            forest: 'vine_pieces_transparent',
+            ember: 'lava_pieces_transparent',
+            neon: 'neon_pieces_transparent',
+            glowing_mycelium: 'glowing_mycelium_pieces_transparent_512',
+            rope_knots: 'rope_knots_v2_pieces_transparent_512',
+            star_constellation: 'star_constellation_v2_pieces_transparent_512',
+            thunder_pulse: 'thunder_pulse_pieces_transparent_512',
+            vine_path: 'vine_path_v2_pieces_transparent_512'
+        };
+
+        function updateSkinPreview(skinId) {
+            const option = skinSelect.options[skinSelect.selectedIndex];
+            const label = `${option?.textContent || '皮肤'}的 T形4 预览`;
+            if (skinId === 'carved_wood' || skinId === 'base') {
+                const tile = skinId === 'carved_wood' ? './assets/skins/carved_wood_tile.png' : '';
+                const grid = document.createElement('div');
+                grid.className = 'skin-preview-grid';
+                grid.setAttribute('aria-label', label);
+                [[0, 1], [1, 0], [1, 1], [1, 2]].forEach(([row, col]) => {
+                    const cell = document.createElement('span');
+                    cell.className = 'skin-preview-cell';
+                    cell.style.gridRow = String(row + 1);
+                    cell.style.gridColumn = String(col + 1);
+                    if (tile) {
+                        cell.style.backgroundImage = `url("${tile}")`;
+                        cell.style.backgroundSize = '100% 100%';
+                    }
+                    grid.appendChild(cell);
+                });
+                skinPreview.replaceChildren(grid);
+                return;
+            }
+
+            const image = document.createElement('img');
+            image.src = `./assets/skins/${previewFolders[skinId] || previewFolders.classic}/07_T4.png`;
+            image.alt = label;
+            skinPreview.replaceChildren(image);
+        }
+
+        try {
+            const { user, profile } = await ensureUserProfile();
+            userStatus.textContent = '访客身份已就绪';
+            userId.textContent = `UID: ${user.uid.slice(0, 8)}...`;
+            skinSelect.value = profile.skinId;
+            updateSkinPreview(profile.skinId);
+            applySkin(profile.skinId);
+            localStorage.setItem('squareGameSelectedSkin', profile.skinId);
+
+            skinSelect.addEventListener('change', async () => {
+                skinSelect.disabled = true;
+                skinStatus.textContent = '正在保存皮肤...';
+                updateSkinPreview(skinSelect.value);
+                try {
+                    const nextProfile = await saveUserProfile(user, {
+                        skinId: skinSelect.value
+                    });
+                    applySkin(nextProfile.skinId);
+                    localStorage.setItem('squareGameSelectedSkin', nextProfile.skinId);
+                    updateSkinPreview(nextProfile.skinId);
+                    skinStatus.textContent = '皮肤已保存，并会同步到下一场联机对局。';
+                } catch (error) {
+                    skinStatus.textContent = `皮肤保存失败：${error.message}`;
+                } finally {
+                    skinSelect.disabled = false;
+                }
+            });
+        } catch (error) {
+            userStatus.textContent = '身份初始化失败';
+            skinStatus.textContent = error.message;
+        }
+    </script>
 </body>
 </html>

@@ -621,7 +621,7 @@
 
             <aside class="side-card">
                 <section class="player-card blue" id="currentPlayerCard">
-                    <h2 id="currentPlayerName">蓝色玩家</h2>
+                    <h2 id="currentPlayerName">玩家1</h2>
                     <p id="currentPlayerHint">请选择一枚棋子开始。</p>
                 </section>
 
@@ -662,10 +662,10 @@
 
     <script>
         const COLORS = {
-            blue: { name: '蓝色玩家', css: 'blue' },
-            yellow: { name: '黄色玩家', css: 'yellow' },
-            red: { name: '红色玩家', css: 'red' },
-            green: { name: '绿色玩家', css: 'green' }
+            blue: { name: '玩家1', css: 'blue' },
+            yellow: { name: '玩家2', css: 'yellow' },
+            red: { name: '玩家3', css: 'red' },
+            green: { name: '玩家4', css: 'green' }
         };
 
         const PIECES = [
@@ -1078,7 +1078,18 @@
         let currentPreviewAnchor = null;
         let suppressNextBoardClick = false;
 
+        function getSelectedSkinId() {
+            const skinId = localStorage.getItem('squareGameSelectedSkin');
+            return ['base', 'classic', 'ocean', 'forest', 'ember', 'neon', 'glowing_mycelium', 'rope_knots', 'star_constellation', 'thunder_pulse', 'vine_path', 'carved_wood'].includes(skinId) ? skinId : 'base';
+        }
+
+        function getSkinIdForColor(color) {
+            return color === 'blue' ? getSelectedSkinId() : 'base';
+        }
+
         function renderMiniPiece(piece, color) {
+            const art = window.squareGameSkinRenderer?.renderPieceArt(piece.id, getSkinIdForColor(color), piece.name);
+            if (art) return art;
             const cells = normalize(piece.cells);
             const maxRow = Math.max(...cells.map(([row]) => row));
             const maxCol = Math.max(...cells.map(([, col]) => col));
@@ -1137,6 +1148,7 @@
                     elements.board.appendChild(button);
                 }
             }
+            window.squareGameSkinRenderer?.applyBoardPieceArt(elements.board, state.board, getSkinIdForColor);
         }
 
         function renderPieces(state) {
@@ -1198,6 +1210,7 @@
 
         function render(state) {
             const player = getCurrentPlayer(state);
+            window.squareGameSkinRenderer?.applyPlayerSkinIndicators(state.players, getSkinIdForColor);
             elements.boardTitle.textContent = `${state.boardRows} × ${state.boardCols} 棋盘`;
             elements.gameStatus.textContent = `${state.mode} 人本地轮流模式`;
             elements.currentPlayerCard.className = `player-card ${player.color}`;
@@ -1397,9 +1410,16 @@
             PIECES,
             dispatch: transport.dispatch,
             getState: transport.getState,
+            refresh: () => render(transport.getState()),
             validatePlacement,
             getUniqueVariants
         };
+    </script>
+    <script>
+    import('./assets/skins/skin-renderer.js?v=skin-tones-v6').then((skinModule) => {
+            window.squareGameSkinRenderer = skinModule;
+            window.__squareGameDebug?.refresh();
+        }).catch(() => {});
     </script>
 </body>
 </html>

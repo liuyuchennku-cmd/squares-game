@@ -16,6 +16,14 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid;
     }
 
+    function validSkin(skinId) {
+      return skinId is string
+        && skinId in [
+          'base', 'classic', 'ocean', 'forest', 'ember', 'neon', 'glowing_mycelium',
+          'rope_knots', 'star_constellation', 'thunder_pulse', 'vine_path', 'carved_wood'
+        ];
+    }
+
     match /rooms/{roomId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
@@ -35,8 +43,32 @@ service cloud.firestore {
 
       match /players/{playerId} {
         allow read: if signedIn();
-        allow create: if signedIn() && request.auth.uid == playerId;
-        allow update: if signedIn() && (request.auth.uid == playerId || isHost(roomId));
+        allow create: if signedIn()
+          && request.auth.uid == playerId
+          && request.resource.data.uid == playerId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 16
+          && validSkin(request.resource.data.skinId)
+          && request.resource.data.keys().hasOnly([
+            'uid',
+            'name',
+            'color',
+            'skinId',
+            'host',
+            'connected',
+            'joinedAt',
+            'lastSeen'
+          ]);
+        allow update: if signedIn()
+          && request.auth.uid == playerId
+          && request.resource.data.uid == resource.data.uid
+          && validSkin(request.resource.data.skinId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name',
+            'skinId',
+            'connected',
+            'lastSeen'
+          ]);
       }
 
       match /colorSeats/{color} {
@@ -50,7 +82,28 @@ service cloud.firestore {
       }
     }
 
-    // 原型版排行榜：允许已登录用户写入。正式版建议改为 Cloud Functions 由服务端结算。
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && validSkin(request.resource.data.skinId)
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'skinId',
+          'createdAt',
+          'updatedAt'
+        ]);
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && validSkin(request.resource.data.skinId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'skinId',
+          'updatedAt'
+        ]);
+    }
+
     match /rankings/{userId} {
       allow read: if true;
       allow create, update: if signedIn();

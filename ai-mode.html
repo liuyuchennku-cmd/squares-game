@@ -2305,7 +2305,7 @@
         <section class="mode-panel" aria-label="游戏模式设置">
             <div>
                 <strong>先选择双人棋盘，再开始与本地 AI 对战</strong>
-                <div style="color: var(--ink-soft); font-size: 13px; margin-top: 4px;">沿用联机双人版的界面和交互。支持 10 × 20 与 14 × 14，AI 会自动接管黄色回合。</div>
+                <div style="color: var(--ink-soft); font-size: 13px; margin-top: 4px;">沿用联机双人版的界面和交互。支持 10 × 20 与 14 × 14，AI 会自动接管玩家2的回合。</div>
             </div>
             <div class="mode-buttons">
                 <button class="mode-button" data-mode="2" data-board-size="10x20"><strong>2 人</strong><span>10 × 20 棋盘</span></button>
@@ -2347,7 +2347,7 @@
             <section class="game-toolbar" aria-label="当前回合与操作">
                 <section class="player-card blue" id="currentPlayerCard">
                     <span class="turn-label">当前回合</span>
-                    <h2 id="currentPlayerName">蓝色玩家</h2>
+                    <h2 id="currentPlayerName">玩家1</h2>
                     <p id="currentPlayerHint">请选择一枚棋子开始。</p>
                 </section>
 
@@ -2489,13 +2489,14 @@
             updateDoc
         } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
         const firebaseConfig = globalThis.firebaseConfig;
+        let applyPlayerSkins = () => {};
 
         const AI_MODE = true;
         const COLORS = {
-            blue: { name: '蓝色玩家', css: 'blue' },
-            yellow: { name: '黄色机器人', css: 'yellow' },
-            red: { name: '红色玩家', css: 'red' },
-            green: { name: '绿色玩家', css: 'green' }
+            blue: { name: '玩家1', css: 'blue' },
+            yellow: { name: '玩家2', css: 'yellow' },
+            red: { name: '玩家3', css: 'red' },
+            green: { name: '玩家4', css: 'green' }
         };
 
         const VICTORY_THEMES = {
@@ -2882,7 +2883,7 @@
                     return { ...state, hover: action.row === null ? null : { row: action.row, col: action.col } };
                 case 'BOT_MOVE': {
                     if (player.color !== 'yellow') return state;
-                    return applyResolvedMove(state, player, action.move, '黄色机器人已落子，轮到你继续。');
+                    return applyResolvedMove(state, player, action.move, '玩家2已落子，轮到你继续。');
                 }
                 case 'PLACE_PIECE': {
                     if (!state.selectedPieceId || !state.selectedCells) {
@@ -3033,6 +3034,16 @@
         let auth = null;
         let currentUser = null;
         let authReadyPromise = null;
+        function getSelectedSkinId() {
+            const skinId = localStorage.getItem('squareGameSelectedSkin');
+            return ['base', 'classic', 'ocean', 'forest', 'ember', 'neon', 'glowing_mycelium', 'rope_knots', 'star_constellation', 'thunder_pulse', 'vine_path', 'carved_wood'].includes(skinId) ? skinId : 'base';
+        }
+
+        function getSkinIdForColor(color) {
+            const roomSkinId = onlineSession.room?.clients?.find((client) => client.color === color)?.skinId;
+            if (roomSkinId) return roomSkinId;
+            return color === (onlineSession.color || 'blue') ? getSelectedSkinId() : 'base';
+        }
         let onlineSession = {
             roomId: null,
             clientId: null,
@@ -3628,6 +3639,8 @@
         }
 
         function renderMiniPiece(piece, color) {
+            const art = window.squareGameSkinRenderer?.renderPieceArt(piece.id, getSkinIdForColor(color), piece.name);
+            if (art) return art;
             const cells = normalize(piece.cells);
             const maxRow = Math.max(...cells.map(([row]) => row));
             const maxCol = Math.max(...cells.map(([, col]) => col));
@@ -3688,6 +3701,7 @@
                     elements.board.appendChild(button);
                 }
             }
+            window.squareGameSkinRenderer?.applyBoardPieceArt(elements.board, state.board, getSkinIdForColor);
         }
 
         function getDisplayedPiecePlayer(state) {
@@ -3729,8 +3743,8 @@
 
             if (AI_MODE) {
                 elements.pieceOwnerHint.textContent = canAct
-                    ? '你的蓝色棋子区，操作方式与联机双人版一致。'
-                    : `当前轮到${currentPlayer.name}。AI 正在处理黄色回合。`;
+                    ? '这是你的棋子区，操作方式与联机双人版一致。'
+                    : `当前轮到${currentPlayer.name}。AI 正在处理玩家2回合。`;
             } else if (!isShowingMyPieces) {
                 elements.pieceOwnerHint.textContent = `${displayedPlayer.name} · 选择棋子后在棋盘落子`;
             } else if (state.status === 'finished' || onlineSession.room?.status === 'finished') {
@@ -3956,7 +3970,7 @@
             elements.closeRoom.textContent = onlineSession.host ? '结束房间' : '离开房间';
             elements.roomPlayers.innerHTML = room.clients.map((client) => `
                 <div class="online-player">
-                    <span class="dot" style="background: var(--${client.color || 'ink-soft'});"></span>
+                    <span class="dot ${client.color || 'ink-soft'}" style="background: var(--${client.color || 'ink-soft'});"></span>
                     <span>${client.name}${client.clientId === onlineSession.clientId ? '（你）' : ''}${client.host ? ' · 房主' : ''}</span>
                     <small>${client.connected ? '在线' : '离线'} · ${colorName(client.color)}</small>
                 </div>
@@ -3965,6 +3979,7 @@
 
         function render(state) {
             const player = getCurrentPlayer(state);
+            window.squareGameSkinRenderer?.applyPlayerSkinIndicators(state.players, getSkinIdForColor);
             elements.boardTitle.textContent = `${state.boardRows} × ${state.boardCols} 棋盘`;
             elements.gameStatus.textContent = AI_MODE
                 ? `人机对弈 · ${state.boardRows} × ${state.boardCols} 棋盘`
@@ -4292,6 +4307,7 @@
                     clientId: player.clientId || player.uid,
                     name: player.name,
                     color: player.color,
+                    skinId: player.skinId || 'base',
                     host: player.host,
                     connected: player.connected,
                     lastSeen: timestampToMillis(player.lastSeen)
@@ -4318,6 +4334,7 @@
                     clientId: client.uid,
                     name: client.name,
                     color: client.color,
+                    skinId: client.skinId || 'base',
                     host: client.host,
                     connected: client.connected,
                     lastSeen: timestampToMillis(client.lastSeen)
@@ -4397,6 +4414,7 @@
                             uid: user.uid,
                             name,
                             color: 'blue',
+                            skinId: getSelectedSkinId(),
                             host: true,
                             connected: true,
                             joinedAt: serverTimestamp(),
@@ -4440,6 +4458,7 @@
                 if (playerSnap.exists()) {
                     transaction.update(playerRef, {
                         name,
+                        skinId: getSelectedSkinId(),
                         connected: true,
                         lastSeen: serverTimestamp()
                     });
@@ -4468,6 +4487,7 @@
                     uid: user.uid,
                     name,
                     color,
+                    skinId: getSelectedSkinId(),
                     host: false,
                     connected: true,
                     joinedAt: serverTimestamp(),
@@ -4499,7 +4519,7 @@
             const nextState = {
                 ...transport.getState(),
                 status: 'playing',
-                message: '对局开始。蓝色玩家先落子。'
+                message: '对局开始。玩家1先落子。'
             };
             await updateDoc(doc(db, 'rooms', onlineSession.roomId), {
                 status: 'playing',
@@ -4550,6 +4570,7 @@
             if (!window.confirm('确定要离开当前房间吗？')) return;
             await setDoc(doc(db, 'rooms', roomId, 'players', clientId), {
                 connected: false,
+                skinId: getSelectedSkinId(),
                 lastSeen: serverTimestamp()
             }, { merge: true });
             resetOnlineSessionLocally('已离开房间。现在可以重新选择棋局并加入或创建房间。');
@@ -4570,6 +4591,7 @@
             }
             await setDoc(doc(db, 'rooms', saved.roomId, 'players', user.uid), {
                 connected: true,
+                skinId: getSelectedSkinId(),
                 lastSeen: serverTimestamp()
             }, { merge: true });
             setOnlineSession(await loadRoomSession(saved.roomId, user.uid));
@@ -4610,6 +4632,7 @@
                     ...item.data(),
                     uid: item.data().uid || item.id
                 }));
+                applyPlayerSkins(players);
                 const roomData = onlineSession.room || { roomId, mode: transport.getState().mode, boardSize: transport.getState().boardSize };
                 onlineSession.room = publicRoomFromData(roomId, roomData, players);
                 const me = players.find((player) => player.uid === onlineSession.clientId);
@@ -4959,9 +4982,20 @@
             if (!db || !onlineSession.roomId || !onlineSession.clientId) return;
             setDoc(doc(db, 'rooms', onlineSession.roomId, 'players', onlineSession.clientId), {
                 connected: false,
+                skinId: getSelectedSkinId(),
                 lastSeen: serverTimestamp()
             }, { merge: true }).catch(() => {});
         });
+
+        import('./firebase/firebase-client.js?v=skin-tones-v4').then((skinModule) => {
+            applyPlayerSkins = skinModule.applyPlayerSkins;
+            if (onlineSession.room?.clients) applyPlayerSkins(onlineSession.room.clients);
+        }).catch(() => {});
+
+        import('./assets/skins/skin-renderer.js?v=skin-tones-v6').then((skinModule) => {
+            window.squareGameSkinRenderer = skinModule;
+            render(transport.getState());
+        }).catch(() => {});
 
         window.__squareGameDebug = {
             PIECES,

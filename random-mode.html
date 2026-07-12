@@ -2320,7 +2320,7 @@
             <section class="game-toolbar" aria-label="当前回合与操作">
                 <section class="player-card blue" id="currentPlayerCard">
                     <span class="turn-label">当前回合</span>
-                    <h2 id="currentPlayerName">蓝色玩家</h2>
+                    <h2 id="currentPlayerName">玩家1</h2>
                     <p id="currentPlayerHint">请选择一枚棋子开始。</p>
                 </section>
 
@@ -2471,12 +2471,13 @@
             updateDoc
         } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
         const firebaseConfig = globalThis.firebaseConfig;
+        let applyPlayerSkins = () => {};
 
         const COLORS = {
-            blue: { name: '蓝色玩家', css: 'blue' },
-            yellow: { name: '黄色玩家', css: 'yellow' },
-            red: { name: '红色玩家', css: 'red' },
-            green: { name: '绿色玩家', css: 'green' }
+            blue: { name: '玩家1', css: 'blue' },
+            yellow: { name: '玩家2', css: 'yellow' },
+            red: { name: '玩家3', css: 'red' },
+            green: { name: '玩家4', css: 'green' }
         };
 
         const VICTORY_THEMES = {
@@ -3076,6 +3077,16 @@
         let auth = null;
         let currentUser = null;
         let authReadyPromise = null;
+        function getSelectedSkinId() {
+            const skinId = localStorage.getItem('squareGameSelectedSkin');
+            return ['base', 'classic', 'ocean', 'forest', 'ember', 'neon', 'glowing_mycelium', 'rope_knots', 'star_constellation', 'thunder_pulse', 'vine_path', 'carved_wood'].includes(skinId) ? skinId : 'base';
+        }
+
+        function getSkinIdForColor(color) {
+            const roomSkinId = onlineSession.room?.clients?.find((client) => client.color === color)?.skinId;
+            if (roomSkinId) return roomSkinId;
+            return color === (onlineSession.color || 'blue') ? getSelectedSkinId() : 'base';
+        }
         let onlineSession = {
             roomId: null,
             clientId: null,
@@ -3695,6 +3706,8 @@
         }
 
         function renderMiniPiece(piece, color) {
+            const art = window.squareGameSkinRenderer?.renderPieceArt(piece.id, getSkinIdForColor(color), piece.name);
+            if (art) return art;
             const cells = normalize(piece.cells);
             const maxRow = Math.max(...cells.map(([row]) => row));
             const maxCol = Math.max(...cells.map(([, col]) => col));
@@ -3753,6 +3766,7 @@
                     elements.board.appendChild(button);
                 }
             }
+            window.squareGameSkinRenderer?.applyBoardPieceArt(elements.board, state.board, getSkinIdForColor);
         }
 
         function getDisplayedPiecePlayer(state) {
@@ -4039,7 +4053,7 @@
             elements.closeRoom.textContent = onlineSession.host ? '结束房间' : '离开房间';
             elements.roomPlayers.innerHTML = room.clients.map((client) => `
                 <div class="online-player">
-                    <span class="dot" style="background: var(--${client.color || 'ink-soft'});"></span>
+                    <span class="dot ${client.color || 'ink-soft'}" style="background: var(--${client.color || 'ink-soft'});"></span>
                     <span>${client.name}${client.clientId === onlineSession.clientId ? '（你）' : ''}${client.host ? ' · 房主' : ''}</span>
                     <small>${client.connected ? '在线' : '离线'} · ${colorName(client.color)}</small>
                 </div>
@@ -4048,6 +4062,7 @@
 
         function render(state) {
             const player = getCurrentPlayer(state);
+            window.squareGameSkinRenderer?.applyPlayerSkinIndicators(state.players, getSkinIdForColor);
             elements.boardTitle.textContent = `${state.boardRows} × ${state.boardCols} 棋盘`;
             elements.gameStatus.textContent = isInOnlineRoom()
                 ? `${state.mode} 人随机模式房间 ${onlineSession.roomId} · ${onlineSession.room?.status === 'waiting' ? '等待开局' : onlineSession.room?.status === 'finished' ? '已结束' : '对局中'}`
@@ -4184,6 +4199,7 @@
                     clientId: player.clientId || player.uid,
                     name: player.name,
                     color: player.color,
+                    skinId: player.skinId || 'base',
                     host: player.host,
                     connected: player.connected,
                     lastSeen: timestampToMillis(player.lastSeen)
@@ -4211,6 +4227,7 @@
                     clientId: client.uid,
                     name: client.name,
                     color: client.color,
+                    skinId: client.skinId || 'base',
                     host: client.host,
                     connected: client.connected,
                     lastSeen: timestampToMillis(client.lastSeen)
@@ -4291,6 +4308,7 @@
                             uid: user.uid,
                             name,
                             color: 'blue',
+                            skinId: getSelectedSkinId(),
                             host: true,
                             connected: true,
                             joinedAt: serverTimestamp(),
@@ -4334,6 +4352,7 @@
                 if (playerSnap.exists()) {
                     transaction.update(playerRef, {
                         name,
+                        skinId: getSelectedSkinId(),
                         connected: true,
                         lastSeen: serverTimestamp()
                     });
@@ -4363,6 +4382,7 @@
                     uid: user.uid,
                     name,
                     color,
+                    skinId: getSelectedSkinId(),
                     host: false,
                     connected: true,
                     joinedAt: serverTimestamp(),
@@ -4394,7 +4414,7 @@
             const nextState = {
                 ...transport.getState(),
                 status: 'playing',
-                message: '对局开始。蓝色玩家先落子。'
+                message: '对局开始。玩家1先落子。'
             };
             await updateDoc(doc(db, 'rooms', onlineSession.roomId), {
                 status: 'playing',
@@ -4445,6 +4465,7 @@
             if (!window.confirm('确定要离开当前房间吗？')) return;
             await setDoc(doc(db, 'rooms', roomId, 'players', clientId), {
                 connected: false,
+                skinId: getSelectedSkinId(),
                 lastSeen: serverTimestamp()
             }, { merge: true });
             resetOnlineSessionLocally('已离开房间。现在可以重新选择棋局并加入或创建房间。');
@@ -4465,6 +4486,7 @@
             }
             await setDoc(doc(db, 'rooms', saved.roomId, 'players', user.uid), {
                 connected: true,
+                skinId: getSelectedSkinId(),
                 lastSeen: serverTimestamp()
             }, { merge: true });
             setOnlineSession(await loadRoomSession(saved.roomId, user.uid));
@@ -4505,6 +4527,7 @@
                     ...item.data(),
                     uid: item.data().uid || item.id
                 }));
+                applyPlayerSkins(players);
                 const roomData = onlineSession.room || { roomId, mode: transport.getState().mode, boardSize: transport.getState().boardSize };
                 onlineSession.room = publicRoomFromData(roomId, roomData, players);
                 const me = players.find((player) => player.uid === onlineSession.clientId);
@@ -4857,9 +4880,20 @@
             if (!db || !onlineSession.roomId || !onlineSession.clientId) return;
             setDoc(doc(db, 'rooms', onlineSession.roomId, 'players', onlineSession.clientId), {
                 connected: false,
+                skinId: getSelectedSkinId(),
                 lastSeen: serverTimestamp()
             }, { merge: true }).catch(() => {});
         });
+
+        import('./firebase/firebase-client.js?v=skin-tones-v4').then((skinModule) => {
+            applyPlayerSkins = skinModule.applyPlayerSkins;
+            if (onlineSession.room?.clients) applyPlayerSkins(onlineSession.room.clients);
+        }).catch(() => {});
+
+        import('./assets/skins/skin-renderer.js?v=skin-tones-v6').then((skinModule) => {
+            window.squareGameSkinRenderer = skinModule;
+            render(transport.getState());
+        }).catch(() => {});
 
         window.__squareGameDebug = {
             PIECES,
