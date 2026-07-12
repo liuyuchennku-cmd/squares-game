@@ -4992,7 +4992,7 @@
             if (onlineSession.room?.clients) applyPlayerSkins(onlineSession.room.clients);
         }).catch(() => {});
 
-        import('./assets/skins/skin-renderer.js?v=skin-tones-v6').then((skinModule) => {
+        import('./assets/skins/skin-renderer.js?v=orientation-preview-v7').then((skinModule) => {
             window.squareGameSkinRenderer = skinModule;
             render(transport.getState());
         }).catch(() => {});

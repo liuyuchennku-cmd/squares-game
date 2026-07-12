@@ -110,10 +110,17 @@ function ensureStyles() {
             position: absolute;
             z-index: 3;
         }
-        .board-piece-art img {
+        .board-piece-art canvas {
             display: block;
-            max-width: none;
+        }
+        .skin-invalid-preview-mask {
+            background: repeating-linear-gradient(45deg, #cbd3da 0 8px, #d87575 8px 12px, #cbd3da 12px 20px);
+            box-sizing: border-box;
+            outline: 2px solid rgba(142, 46, 46, 0.7);
+            outline-offset: -3px;
+            pointer-events: none;
             position: absolute;
+            z-index: 6;
         }
         .procedural-piece-art {
             display: grid;
@@ -159,6 +166,12 @@ function ensureStyles() {
         html[data-player-skin-indicators="true"] body .board-cell.preview.yellow:not(.invalid) { background: var(--skin-preview-yellow) !important; outline-color: var(--skin-corner-yellow) !important; }
         html[data-player-skin-indicators="true"] body .board-cell.preview.red:not(.invalid) { background: var(--skin-preview-red) !important; outline-color: var(--skin-corner-red) !important; }
         html[data-player-skin-indicators="true"] body .board-cell.preview.green:not(.invalid) { background: var(--skin-preview-green) !important; outline-color: var(--skin-corner-green) !important; }
+        body .board-cell.preview.invalid {
+            background: repeating-linear-gradient(45deg, #cbd3da 0 8px, #d87575 8px 12px, #cbd3da 12px 20px) !important;
+            opacity: 1 !important;
+            outline-color: rgba(142, 46, 46, 0.7) !important;
+            z-index: 4;
+        }
         html[data-player-skin-indicators="true"] body .score-dot.blue { background: var(--skin-indicator-blue) !important; }
         html[data-player-skin-indicators="true"] body .score-dot.yellow { background: var(--skin-indicator-yellow) !important; }
         html[data-player-skin-indicators="true"] body .score-dot.red { background: var(--skin-indicator-red) !important; }
@@ -333,10 +346,11 @@ function findOpaqueBounds(image) {
     }
 
     if (right < left || bottom < top) {
-        return { imageWidth: canvas.width, imageHeight: canvas.height, left: 0, top: 0, width: canvas.width, height: canvas.height };
+        return { image, imageWidth: canvas.width, imageHeight: canvas.height, left: 0, top: 0, width: canvas.width, height: canvas.height };
     }
 
     return {
+        image,
         imageWidth: canvas.width,
         imageHeight: canvas.height,
         left,
@@ -344,6 +358,41 @@ function findOpaqueBounds(image) {
         width: right - left + 1,
         height: bottom - top + 1
     };
+}
+
+function normalizePieceCells(cells) {
+    const minRow = Math.min(...cells.map(([row]) => row));
+    const minCol = Math.min(...cells.map(([, col]) => col));
+    return cells
+        .map(([row, col]) => [row - minRow, col - minCol])
+        .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+}
+
+function rotatePieceCells(cells) {
+    return normalizePieceCells(cells.map(([row, col]) => [col, -row]));
+}
+
+function flipPieceCells(cells) {
+    return normalizePieceCells(cells.map(([row, col]) => [-row, col]));
+}
+
+function samePieceCells(left, right) {
+    return left.length === right.length && left.every(([row, col], index) => row === right[index][0] && col === right[index][1]);
+}
+
+function getPieceOrientation(pieceId, placedCells) {
+    const canonical = PIECE_CELLS[pieceId];
+    if (!canonical) return null;
+
+    const target = normalizePieceCells(placedCells);
+    for (let flipped = 0; flipped < 2; flipped += 1) {
+        let candidate = flipped ? flipPieceCells(canonical) : normalizePieceCells(canonical);
+        for (let turns = 0; turns < 4; turns += 1) {
+            if (samePieceCells(candidate, target)) return { flipped: Boolean(flipped), turns };
+            candidate = rotatePieceCells(candidate);
+        }
+    }
+    return null;
 }
 
 function requestArtBounds(source) {
@@ -373,11 +422,13 @@ function requestArtBounds(source) {
     return request;
 }
 
-function renderGroupArt(boardElement, group, source, bounds, contentScale) {
+function renderGroupArt(boardElement, group, bounds, contentScale) {
     if (!bounds) return;
 
     const cells = group.cells.map(([row, col]) => boardElement.querySelector(`.board-cell[data-row="${row}"][data-col="${col}"]`));
     if (cells.some((cell) => !cell)) return;
+    const orientation = getPieceOrientation(group.pieceId, group.cells);
+    if (!orientation) return;
 
     const boardRect = boardElement.getBoundingClientRect();
     const cellRects = cells.map((cell) => cell.getBoundingClientRect());
@@ -403,9 +454,10 @@ function renderGroupArt(boardElement, group, source, bounds, contentScale) {
         height: bounds.height / contentScale
     };
     const layer = document.createElement('div');
-    const image = document.createElement('img');
-    const scaleX = width / croppedBounds.width;
-    const scaleY = height / croppedBounds.height;
+    const canvas = document.createElement('canvas');
+    const density = window.devicePixelRatio || 1;
+    const preRotationWidth = orientation.turns % 2 ? height : width;
+    const preRotationHeight = orientation.turns % 2 ? width : height;
 
     layer.className = 'board-piece-art';
     layer.style.left = `${left - boardRect.left}px`;
@@ -413,14 +465,40 @@ function renderGroupArt(boardElement, group, source, bounds, contentScale) {
     layer.style.width = `${width}px`;
     layer.style.height = `${height}px`;
 
-    image.src = source;
-    image.alt = '';
-    image.draggable = false;
-    image.style.left = `${-croppedBounds.left * scaleX}px`;
-    image.style.top = `${-croppedBounds.top * scaleY}px`;
-    image.style.width = `${bounds.imageWidth * scaleX}px`;
-    image.style.height = `${bounds.imageHeight * scaleY}px`;
-    layer.appendChild(image);
+    canvas.width = Math.max(1, Math.round(width * density));
+    canvas.height = Math.max(1, Math.round(height * density));
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    const context = canvas.getContext('2d');
+    context.scale(density, density);
+    if (orientation.turns === 1) {
+        context.translate(width, 0);
+        context.rotate(Math.PI / 2);
+    } else if (orientation.turns === 2) {
+        context.translate(width, height);
+        context.rotate(Math.PI);
+    } else if (orientation.turns === 3) {
+        context.translate(0, height);
+        context.rotate(-Math.PI / 2);
+    }
+    if (orientation.flipped) {
+        context.translate(0, preRotationHeight);
+        context.scale(1, -1);
+    }
+    context.drawImage(
+        bounds.image,
+        croppedBounds.left,
+        croppedBounds.top,
+        croppedBounds.width,
+        croppedBounds.height,
+        0,
+        0,
+        preRotationWidth,
+        preRotationHeight
+    );
+
+    layer.appendChild(canvas);
     boardElement.appendChild(layer);
 }
 
@@ -439,6 +517,31 @@ function renderProceduralBoardGroup(boardElement, group, tileSource) {
     });
 }
 
+function syncInvalidPreviewMasks(boardElement) {
+    boardElement.querySelectorAll('.skin-invalid-preview-mask').forEach((mask) => mask.remove());
+    boardElement.querySelectorAll('.board-cell.preview.invalid').forEach((cell) => {
+        const mask = document.createElement('div');
+        mask.className = 'skin-invalid-preview-mask';
+        mask.style.left = `${cell.offsetLeft}px`;
+        mask.style.top = `${cell.offsetTop}px`;
+        mask.style.width = `${cell.offsetWidth}px`;
+        mask.style.height = `${cell.offsetHeight}px`;
+        boardElement.appendChild(mask);
+    });
+}
+
+function ensureInvalidPreviewMasks(boardElement) {
+    if (!boardElement.__skinInvalidPreviewObserver && typeof MutationObserver !== 'undefined') {
+        boardElement.__skinInvalidPreviewObserver = new MutationObserver(() => syncInvalidPreviewMasks(boardElement));
+        boardElement.__skinInvalidPreviewObserver.observe(boardElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+            subtree: true
+        });
+    }
+    syncInvalidPreviewMasks(boardElement);
+}
+
 export function applyBoardPieceArt(boardElement, board, getSkinIdForColor) {
     ensureStyles();
     if (!boardElement || !Array.isArray(board)) return;
@@ -446,6 +549,7 @@ export function applyBoardPieceArt(boardElement, board, getSkinIdForColor) {
     const version = String(Number(boardElement.dataset.pieceArtVersion || 0) + 1);
     boardElement.dataset.pieceArtVersion = version;
     boardElement.querySelectorAll('.board-piece-art').forEach((layer) => layer.remove());
+    ensureInvalidPreviewMasks(boardElement);
 
     getPieceGroups(board).forEach((group) => {
         const skinId = normalizeSkinId(getSkinIdForColor(group.color));
@@ -461,7 +565,7 @@ export function applyBoardPieceArt(boardElement, board, getSkinIdForColor) {
         const contentScale = REDUCED_ART_SKINS.has(skinId) ? REDUCED_ART_SCALE : ART_CONTENT_SCALE;
         requestArtBounds(source).then((bounds) => {
             if (boardElement.dataset.pieceArtVersion === version) {
-                renderGroupArt(boardElement, group, source, bounds, contentScale);
+                renderGroupArt(boardElement, group, bounds, contentScale);
             }
         });
     });
